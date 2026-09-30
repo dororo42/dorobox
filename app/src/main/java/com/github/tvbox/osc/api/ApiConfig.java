@@ -636,7 +636,8 @@ public class ApiConfig {
         if (ijkCodes == null) {
             ijkCodes = new ArrayList<>();
             boolean foundOldSelect = false;
-            String ijkCodec = Hawk.get(HawkConfig.IJK_CODEC, "");
+            // 默认硬解码优先：老盒子 4K 软解易 OOM
+            String ijkCodec = Hawk.get(HawkConfig.IJK_CODEC, "硬解码");
             JsonArray ijkJsonArray = infoJson.has("ijk") ? infoJson.get("ijk").getAsJsonArray() : defaultJson.get("ijk").getAsJsonArray();
             for (JsonElement opt : ijkJsonArray) {
                 JsonObject obj = (JsonObject) opt;
@@ -661,7 +662,15 @@ public class ApiConfig {
                 ijkCodes.add(codec);
             }
             if (!foundOldSelect && ijkCodes.size() > 0) {
-                ijkCodes.get(0).selected(true);
+                // 兜底也优先选硬解码组
+                int defIdx = 0;
+                for (int i = 0; i < ijkCodes.size(); i++) {
+                    if (ijkCodes.get(i).getName().equals("硬解码")) {
+                        defIdx = i;
+                        break;
+                    }
+                }
+                ijkCodes.get(defIdx).selected(true);
             }
         }
     }

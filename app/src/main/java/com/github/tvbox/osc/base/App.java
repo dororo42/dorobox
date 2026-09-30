@@ -101,7 +101,13 @@ public class App extends MultiDexApplication {
         dir = getExternalCacheDir();
         FileUtils.recursiveDelete(dir);*/
 
-        FileUtils.cleanPlayerCache();
+        // 播放缓存清理移后台，避免冷启动同步删数百 MB 造成卡顿
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                FileUtils.cleanPlayerCache();
+            }
+        }, "clean-player-cache").start();
 
         // Add JS support
         QuickJSLoader.init();

@@ -171,6 +171,8 @@ public class HistoryActivity extends BaseActivity {
     protected void onDestroy() {
         super.onDestroy();
         EventBus.getDefault().unregister(this);
+        // 释放静态 adapter 引用，避免持有 Activity 造成泄漏
+        historyAdapter = null;
     }
 
     @Override

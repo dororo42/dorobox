@@ -596,14 +596,36 @@ public class SourceViewModel extends ViewModel {
         }
     }
 
+    // 搜索专用线程池：cached 模式，慢源/死源不会阻塞其他源，也不会饿死自身
+    private static final ExecutorService spiderSearchPool = Executors.newCachedThreadPool();
+    private static final int SEARCH_TIMEOUT_SECONDS = 15;
+
     // searchContent
     public void getSearch(String sourceKey, String wd) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
         int type = sourceBean.getType();
         if (type == 3) {
             try {
-                Spider sp = ApiConfig.get().getCSP(sourceBean);
-                String search = sp.searchContent(wd, false);
+                final String keyword = wd;
+                Future<String> future = spiderSearchPool.submit(new Callable<String>() {
+                    @Override
+                    public String call() {
+                        Spider sp = ApiConfig.get().getCSP(ApiConfig.get().getSource(sourceKey));
+                        return sp.searchContent(keyword, false);
+                    }
+                });
+                String search;
+                try {
+                    search = future.get(SEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                } catch (TimeoutException te) {
+                    future.cancel(true);
+                    LOG.e("getSearch timeout(" + SEARCH_TIMEOUT_SECONDS + "s): " + sourceKey);
+                    search = "";
+                } catch (InterruptedException | ExecutionException ie) {
+                    future.cancel(true);
+                    LOG.e("getSearch error: " + sourceKey);
+                    search = "";
+                }
                 if (!TextUtils.isEmpty(search)) {
                     json(searchResult, search, sourceBean.getKey());
                 } else {
