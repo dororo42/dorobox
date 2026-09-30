@@ -136,7 +136,8 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 ### 已知坑
 
 - **远程命名**：`origin` = dororo42/dorobox（用户 fork，Box 血统，正常 push）；`upstream` = takagen99/Box（真上游，只 fetch）。旧 FongMi 内容在 `dororo42/tv-fongmi`（2026-09-30 由 dorobox 改名而来）与 `dororo42/TV`。本地曾是浅克隆，已 `fetch upstream --unshallow` 补全。
-- 本机 `java` 是 JDK 25：不要尝试直接跑 `./gradlew`，会报 AGP 版本不兼容。
+- **布局有 `res/layout` 与 `res/layout-v21` 双份**：API 21+（即全部目标设备）走 v21 变体，加控件两份都要改，否则 CI 会报 `cannot find symbol R.id.xxx`。
+- 本机 `java` 是 JDK 25：不要尝试直接跑 `./gradlew`，会报 AGP 版本不兼容——现在直接 push 让 CI 验证即可。
 - `app/libs` 与 `jniLibs` 有提交进仓库的二进制（42MB `.so` 等），clone/构建耗时较长属正常。
 - OkGo 的 `OkGo.<File>get(jar).execute()` 走的是 OkGoHelper 初始化的全局 client，其 SSL 已改为安全默认——自签名证书的源会开始失败，这是预期行为，个别源可用 `createTrustAll` 思路做按源 opt-in（尚未实现 UI）。
 
