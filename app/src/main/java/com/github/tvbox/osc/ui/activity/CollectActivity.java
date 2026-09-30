@@ -12,6 +12,7 @@ import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.base.BaseActivity;
 import com.github.tvbox.osc.cache.RoomDataManger;
+import com.github.tvbox.osc.data.DbIo;
 import com.github.tvbox.osc.cache.VodCollect;
 import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.ui.adapter.CollectAdapter;
@@ -150,12 +151,19 @@ public class CollectActivity extends BaseActivity {
     }
 
     private void initData() {
-        List<VodCollect> allVodRecord = RoomDataManger.getAllVodCollect();
-        List<VodCollect> vodInfoList = new ArrayList<>();
-        for (VodCollect vodInfo : allVodRecord) {
-            vodInfoList.add(vodInfo);
-        }
-        collectAdapter.setNewData(vodInfoList);
+        // 整表加载走真异步（DbIo.fetch），结果回调主线程
+        RoomDataManger.fetchAllVodCollect(new DbIo.Callback<List<VodCollect>>() {
+            @Override
+            public void onResult(List<VodCollect> allVodRecord) {
+                List<VodCollect> vodInfoList = new ArrayList<>();
+                if (allVodRecord != null) {
+                    for (VodCollect vodInfo : allVodRecord) {
+                        vodInfoList.add(vodInfo);
+                    }
+                }
+                collectAdapter.setNewData(vodInfoList);
+            }
+        });
     }
 
 

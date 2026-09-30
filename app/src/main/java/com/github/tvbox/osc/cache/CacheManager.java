@@ -14,8 +14,7 @@ import java.io.ObjectOutputStream;
  * @since 2020/5/15
  */
 public class CacheManager {
-    // 写操作（序列化+SQLite）统一走后台单线程，避免主线程 IO 卡顿（播放进度每次暂停都会触发）
-    private static final java.util.concurrent.ExecutorService WRITE_POOL = java.util.concurrent.Executors.newSingleThreadExecutor();
+    // 写读统一走 DbIo 单线程（与 RoomDataManger/DbHelper 串行化，避免锁竞争）；主线程读有界等待
 
     //反序列,把二进制数据转换成java object对象
     private static Object toObject(byte[] data) {
@@ -73,7 +72,7 @@ public class CacheManager {
         final Cache cache = new Cache();
         cache.key = key;
         cache.data = toByteArray(body);
-        WRITE_POOL.execute(new Runnable() {
+        com.github.tvbox.osc.data.DbIo.post(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -89,7 +88,7 @@ public class CacheManager {
         final Cache cache = new Cache();
         cache.key = key;
         cache.data = toByteArray(body);
-        WRITE_POOL.execute(new Runnable() {
+        com.github.tvbox.osc.data.DbIo.post(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -101,11 +100,16 @@ public class CacheManager {
         });
     }
 
-    public static Object getCache(String key) {
-        Cache cache = AppDataManager.get().getCacheDao().getCache(key);
-        if (cache != null && cache.data != null) {
-            return toObject(cache.data);
-        }
-        return null;
+    public static Object getCache(final String key) {
+        return com.github.tvbox.osc.data.DbIo.run(new java.util.concurrent.Callable<Object>() {
+            @Override
+            public Object call() {
+                Cache cache = AppDataManager.get().getCacheDao().getCache(key);
+                if (cache != null && cache.data != null) {
+                    return toObject(cache.data);
+                }
+                return null;
+            }
+        });
     }
 }

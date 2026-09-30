@@ -11,6 +11,7 @@ import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.base.BaseActivity;
 import com.github.tvbox.osc.bean.VodInfo;
 import com.github.tvbox.osc.cache.RoomDataManger;
+import com.github.tvbox.osc.data.DbIo;
 import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.ui.adapter.HistoryAdapter;
 import com.github.tvbox.osc.ui.dialog.ConfirmClearDialog;
@@ -148,15 +149,22 @@ public class HistoryActivity extends BaseActivity {
     }
 
     private void initData() {
-        List<VodInfo> allVodRecord = RoomDataManger.getAllVodRecord(100);
-        List<VodInfo> vodInfoList = new ArrayList<>();
-        for (VodInfo vodInfo : allVodRecord) {
-            if (vodInfo.playNote != null && !vodInfo.playNote.isEmpty()) {
-                vodInfo.note = "看到" + vodInfo.playNote;
+        // 整表加载含 Gson 反序列化，走真异步（DbIo.fetch），结果回调主线程
+        RoomDataManger.fetchAllVodRecord(100, new DbIo.Callback<List<VodInfo>>() {
+            @Override
+            public void onResult(List<VodInfo> allVodRecord) {
+                List<VodInfo> vodInfoList = new ArrayList<>();
+                if (allVodRecord != null) {
+                    for (VodInfo vodInfo : allVodRecord) {
+                        if (vodInfo.playNote != null && !vodInfo.playNote.isEmpty()) {
+                            vodInfo.note = "看到" + vodInfo.playNote;
+                        }
+                        vodInfoList.add(vodInfo);
+                    }
+                }
+                historyAdapter.setNewData(vodInfoList);
             }
-            vodInfoList.add(vodInfo);
-        }
-        historyAdapter.setNewData(vodInfoList);
+        });
     }
 
 
