@@ -1,0 +1,41 @@
+name: Android Build
+
+# 目的：在无本地 SDK 的环境下持续验证 P0/P1/P2 改动可编译（含 release 的 R8+shrinkResources 规则校验）
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest   # 自带 Android SDK，无需手动安装
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 (AGP 7.4.2 要求 11-17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # 逐 flavor 编译：python flavor 依赖 buildPython/chaquopy，CI 暂不构建（见 handoff 延后项）
+      - name: Build debug APKs (normal mode, armeabi + arm64)
+        run: ./gradlew assembleArmeabiGenericNormalDebug assembleArm64GenericNormalDebug --stacktrace
+
+      # release 走 minify + shrinkResources，用于验证 proguard 规则（产物为未签名 APK）
+      - name: Build release APK (R8 + shrinkResources validation, unsigned)
+        run: ./gradlew assembleArmeabiGenericNormalRelease --stacktrace
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
