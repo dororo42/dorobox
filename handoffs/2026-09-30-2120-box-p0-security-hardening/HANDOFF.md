@@ -8,7 +8,8 @@
 - Target mode: all
 - Project: https://github.com/takagen99/Box.git（本地副本 /home/doro/Box）
 - Branch: main
-- HEAD: a8dfc43（P0 加固 + handoff 套件已提交；工作树另有 P1 改动未提交）
+- HEAD: 已推送至 https://github.com/dororo42/dorobox（原 takagen99/Box 血统：P0 `a8dfc43` + P1 `678d165` + 文档 `6abcb38`；后续批次见 git log）
+- 远程：`origin` = dororo42/dorobox（用户 fork，已重建为 Box 血统）；`upstream` = takagen99/Box
 - OS: linux
 
 ### 交接链
@@ -80,6 +81,8 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 - [x] **P1-5** `getSearch` 爬虫搜索加 15s 超时（独立 cached 线程池 `spiderSearchPool`，防慢源阻塞+防饿死）；`cleanPlayerCache` 移后台线程
 - [x] **P1-6** IJK 默认硬解码（`Hawk.get` 默认值 + 兜底选择均优先"硬解码"组）；`autoRetry` 升级为两段式：第一次 IJK 硬/软解互换（`HawkUtils.nextIJKCodec()`），第二次切换内核 IJK↔EXO；proguard 恢复 `com.github.tvbox.osc.bean.**` keep
 - [x] **P1-7（部分）** `HistoryActivity`/`CollectActivity` onDestroy 置空静态 adapter；`BaseActivity.onTrimMemory` 内存告警时释放 `globalWp` 位图
+- [x] **P1 残余** `JsSpider` 惰性创建 QuickJS VM（构造器不再 `initializeJS()`，首个 JS 调用经 `ensureInit()` 排队，单线程 executor 保证顺序）；`SourceViewModel.spiderSearchPool` 由 cached（无界）改为 fixed(4) 限制搜索并发
+- [x] **P2** proguard 清理 `com.google.androidx.media3`（包名写反）无效 keep 规则；release 开启 `shrinkResources true`
 - [x] 静态核查：IDE 诊断 0 告警；改动文件括号配平自检通过（RemoteServer 的配平"异常"与原始文件差值一致，系字符串内正则干扰，非真问题）
 
 ### 决策记录
@@ -102,15 +105,15 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 
 ### Blocker / 未决问题
 
-- [ ] **远程仓库血统不一致（已决策，待用户在 GitHub 侧处理）**：`dororo42/dorobox` 仓库现 main 是 FongMi/TV 内容（HEAD `a4d00938c`，与 `/home/doro/TV` fongmi 分支同源），与 takagen99/Box 无共同祖先。用户已决策"先不动远程"；本地 Box 仓库已配 `origin`→dorobox、`upstream`→takagen99/Box，**在用户整理好 GitHub 仓库（改名/清空/另建）之前不要 push**。FongMi 内容在 `dororo42/TV` 有完整副本。
+- [x] **远程仓库血统不一致 —— 已解决（2026-09-30）**：原 `dororo42/dorobox` main 是 FongMi/TV 内容。已用 gh CLI 把旧仓库改名为 `dororo42/tv-fongmi`，新建空的 `dororo42/dorobox`，本地补全浅克隆历史后 `git push -u origin main` 成功。
 - [ ] 编译验证未执行（本机无 Android SDK platforms；JDK 25 与 AGP 7.4.2 不兼容）—— 需要：装有 JDK 11–17 + Android SDK 的环境，或在本机安装两者。
 - [ ] token 如何触达用户/遥控端尚无 UI—— 需要：在设置页显示 token（或生成带 token 的二维码），否则 AndServer 推送与文件端点实际不可用。
 
 ### 延后项
 
 - 从 `settings.gradle`/依赖中物理移除 `xwalk` 模块与 `XWalkInitDialog`/`XWalkUtils` 相关代码（P0-3 的收尾；运行时路径已断，编译期仍在）。
-- P1 残余：`allowMainThreadQueries` 完全移除（读路径逐点异步化）；JS 源惰性创建 QuickJS VM + 限制并发搜索数；EPG/直播列表 DiffUtil（`LivePlayActivity:1222,1261` 一带）；Hawk 热点 key 内存缓存。
-- P2 工程化 8–10 项（Spider 开发指南、proguard 无效规则清理、release shrinkResources、media3 升级）。
+- P1 残余：`allowMainThreadQueries` 完全移除（读路径逐点异步化）；EPG/直播列表 DiffUtil（`LivePlayActivity:1222,1261` 一带）；Hawk 热点 key 内存缓存。
+- P2 残余：《Spider 开发指南》+ 2 个示例源；pyramid buildPython 路径参数化；media3 1.3.1 → 新版本升级评估。
 - `usesCleartextTraffic="true"` 与 `MANAGE_EXTERNAL_STORAGE`、`REQUEST_INSTALL_PACKAGES` 权限收敛（报告 M-5）。
 
 ## 接手方必读
@@ -130,7 +133,7 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 
 ### 已知坑
 
-- **远程命名**：`origin` = dororo42/dorobox（用户 fork，但仓库 main 血统是 FongMi/TV，勿直接 push main）；`upstream` = takagen99/Box（真上游）。历史遗留：之前按 FongMi/TV 开发时把内容推进了 dorobox。
+- **远程命名**：`origin` = dororo42/dorobox（用户 fork，Box 血统，正常 push）；`upstream` = takagen99/Box（真上游，只 fetch）。旧 FongMi 内容在 `dororo42/tv-fongmi`（2026-09-30 由 dorobox 改名而来）与 `dororo42/TV`。本地曾是浅克隆，已 `fetch upstream --unshallow` 补全。
 - 本机 `java` 是 JDK 25：不要尝试直接跑 `./gradlew`，会报 AGP 版本不兼容。
 - `app/libs` 与 `jniLibs` 有提交进仓库的二进制（42MB `.so` 等），clone/构建耗时较长属正常。
 - OkGo 的 `OkGo.<File>get(jar).execute()` 走的是 OkGoHelper 初始化的全局 client，其 SSL 已改为安全默认——自签名证书的源会开始失败，这是预期行为，个别源可用 `createTrustAll` 思路做按源 opt-in（尚未实现 UI）。
