@@ -1,4 +1,4 @@
-# Handoff: Box P0 安全加固（按 BOX_CODE_REVIEW_2026-09-30.md 执行）
+# Handoff: Box P0/P1 安全与稳定性加固（按 BOX_CODE_REVIEW_2026-09-30.md 执行）
 
 ## 元数据
 
@@ -8,7 +8,7 @@
 - Target mode: all
 - Project: https://github.com/takagen99/Box.git（本地副本 /home/doro/Box）
 - Branch: main
-- HEAD: 258a5fe（本份工作未提交，工作树含未提交修改）
+- HEAD: a8dfc43（P0 加固 + handoff 套件已提交；工作树另有 P1 改动未提交）
 - OS: linux
 
 ### 交接链
@@ -20,7 +20,7 @@
 
 ## 当前状态摘要
 
-按 2026-09-30 的 Box 独立代码审查报告，完成了全部 **P0（发布前必须）三项**的代码修改，共 13 个文件（12 个已有文件 + 2 个新建 Java 类），改动均未提交。P0-1 断 RCE 链（trust-all TLS 移除、本地服务 token 鉴权 + 路径校验 + zip-slip 防护、jar 下载 fail-closed md5 校验）、P0-2 全局崩溃处理器 + 本地崩溃日志、P0-3 WebView/Crosswalk 加固均已落地。**编译验证被环境阻塞**（本机无 Android SDK platforms，JDK 25 与 AGP 7.4.2 不兼容），已做静态核查（IDE 诊断零告警 + 括号配平），接手方第一件事就是在有 SDK 的机器上跑 `assembleDebug` 验证。
+按 2026-09-30 的 Box 独立代码审查报告，**P0 三项已全部完成并提交**（commit `a8dfc43`，含 handoff 套件与 AGENTS.md）。随后完成 **P1 稳定性第 4–7 项的大部分**（见"已完成工作"），暂未提交。**编译验证始终被环境阻塞**（本机无 Android SDK platforms，JDK 25 与 AGP 7.4.2 不兼容），仅做了静态核查（IDE 诊断零告警）——接手方第一件事就是在有 SDK 的机器上跑 `assembleDebug`，把 P0+P1 一起验证。
 
 ## 最近提交（上下文参考）
 
@@ -76,6 +76,10 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 - [x] P0-2 CrashHandler 新建 + App.onCreate 安装，崩溃日志落 `files/crash/`
 - [x] P0-3 WebView：file:// access 全关、SSL 错误不再 proceed；Crosswalk 使用路径在 PlayActivity/PlayFragment 两处硬编码停用（模块本身仍在 settings.gradle/依赖里，见延后项）
 - [x] pyramid `verify=False` 移除
+- [x] **P1-4** `CacheManager.save/delete`（含播放进度，每次暂停触发）序列化+SQLite 写入移后台单线程池；`allowMainThreadQueries` 保留（读路径异步化工程量大，见延后项）
+- [x] **P1-5** `getSearch` 爬虫搜索加 15s 超时（独立 cached 线程池 `spiderSearchPool`，防慢源阻塞+防饿死）；`cleanPlayerCache` 移后台线程
+- [x] **P1-6** IJK 默认硬解码（`Hawk.get` 默认值 + 兜底选择均优先"硬解码"组）；`autoRetry` 升级为两段式：第一次 IJK 硬/软解互换（`HawkUtils.nextIJKCodec()`），第二次切换内核 IJK↔EXO；proguard 恢复 `com.github.tvbox.osc.bean.**` keep
+- [x] **P1-7（部分）** `HistoryActivity`/`CollectActivity` onDestroy 置空静态 adapter；`BaseActivity.onTrimMemory` 内存告警时释放 `globalWp` 位图
 - [x] 静态核查：IDE 诊断 0 告警；改动文件括号配平自检通过（RemoteServer 的配平"异常"与原始文件差值一致，系字符串内正则干扰，非真问题）
 
 ### 决策记录
@@ -92,9 +96,9 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 
 ### 立即下一步
 
-1. **在有 Android SDK 的机器上编译验证**：JDK 11–17 + `sdkmanager "platforms;android-28"`，然后 `cd /home/doro/Box && ./gradlew assembleDebug`（先 normal flavor）。修复任何编译错误——重点核对 `SSLCompat.create()` 返回类型与 OkHttp `sslSocketFactory()` 签名、`ServerToken` 在 Kotlin 侧的调用。
-2. 编译通过后真机冒烟：加载一份**带 md5 的**配置验证 jar 正常加载；加载不带 md5 的配置确认默认仍可用且 logcat 出现 fail-closed 警告路径未触发；开启 `JAR_VERIFY_STRICT` 确认无 md5 jar 被拒。
-3. 提交本批改动（等用户确认后），建议 commit message：`security: P0 hardening per code review 2026-09-30 (trust-all removed, local server token auth, jar fail-closed verify, crash handler, webview hardening)`。
+1. **提交工作树中未提交的 P1 改动**（若接手时仍未提交）：`cd /home/doro/Box && git add -A && git commit`，建议 message：`stability: P1 hardening per code review 2026-09-30 (async cache writes, search timeout, IJK hw-decode default, retry chain, static leak fixes)`。
+2. **在有 Android SDK 的机器上编译验证**：JDK 11–17 + `sdkmanager "platforms;android-28"`，然后 `./gradlew assembleDebug`（先 normal flavor）。重点核对 `SSLCompat.create()` 与 OkHttp `sslSocketFactory()` 签名、`ServerToken` 在 Kotlin 侧调用、SourceViewModel 新增 spiderSearchPool。
+3. 真机冒烟：带 md5 / 不带 md5 / 开启 `JAR_VERIFY_STRICT` 三种配置各加载一次；搜索 30 源观察超时日志；IJK 硬解失败时观察自动切软解。
 
 ### Blocker / 未决问题
 
@@ -104,8 +108,8 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 ### 延后项
 
 - 从 `settings.gradle`/依赖中物理移除 `xwalk` 模块与 `XWalkInitDialog`/`XWalkUtils` 相关代码（P0-3 的收尾；运行时路径已断，编译期仍在）。
-- P1 稳定性 4–7 项（主线程 Room/序列化、搜索超时、IJK 硬解默认、静态引用泄漏）—— 见审查报告第六节。
-- P2 工程化 8–10 项（Spider 开发指南、proguard 清理、media3 升级）。
+- P1 残余：`allowMainThreadQueries` 完全移除（读路径逐点异步化）；JS 源惰性创建 QuickJS VM + 限制并发搜索数；EPG/直播列表 DiffUtil（`LivePlayActivity:1222,1261` 一带）；Hawk 热点 key 内存缓存。
+- P2 工程化 8–10 项（Spider 开发指南、proguard 无效规则清理、release shrinkResources、media3 升级）。
 - `usesCleartextTraffic="true"` 与 `MANAGE_EXTERNAL_STORAGE`、`REQUEST_INSTALL_PACKAGES` 权限收敛（报告 M-5）。
 
 ## 接手方必读

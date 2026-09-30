@@ -5,7 +5,7 @@ takagen99/Box 的本地开发副本（TVBox 血统安卓应用，Java，minSdk 2
 ## Current Handoff
 
 - Latest: `handoffs/2026-09-30-2120-box-p0-security-hardening/HANDOFF.md`
-- Branch: main @ 258a5fe（含未提交的 P0 加固改动）
-- Status: 进行中 —— P0 三项代码已落地，待有 SDK 环境编译验证后提交；下一步为 P1 稳定性项
+- Branch: main @ a8dfc43（P0 已提交；工作树含 P1 稳定性改动）
+- Status: 进行中 —— P0+P1 代码已落地，待有 SDK 环境编译验证；下一步为 P1 残余项与 P2 工程化
 
 任何 agent 开始工作前，先读上面的 HANDOFF.md。这份指针由 agent-handoff 维护，手工交接时请同步更新。

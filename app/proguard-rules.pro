@@ -205,8 +205,8 @@
 -keep class jcifs.** { *; }
 -dontwarn jcifs.**
 
-# 实体类
-#-keep class com.github.tvbox.osc.bean.** { *; }
+# 实体类（Gson 反射依赖字段名，混淆会静默断字段）
+-keep class com.github.tvbox.osc.bean.** { *; }
 -keep class com.github.tvbox.osc.ui.fragment.homes.**{*;}
 #CardView
 -keep class com.github.tvbox.osc.ui.tv.widget.card.**{*;}

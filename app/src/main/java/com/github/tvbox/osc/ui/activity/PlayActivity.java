@@ -1362,13 +1362,22 @@ public class PlayActivity extends BaseActivity {
     private int autoRetryCount = 0;
 
     boolean autoRetry() {
-        switchPlayer();
         if (loadFoundVideoUrls != null && loadFoundVideoUrls.size() > 0) {
             autoRetryFromLoadFoundVideoUrls();
             return true;
         }
-        if (autoRetryCount < 1) {
+        // 两次重试：第一次 IJK 硬/软解互换，第二次切换内核（IJK↔EXO）
+        if (autoRetryCount < 2) {
             autoRetryCount++;
+            try {
+                if (mVodPlayerCfg.getInt("pl") == 1 && autoRetryCount == 1) {
+                    HawkUtils.nextIJKCodec(); // IJK 硬解出错先试软解，老盒子硬解兼容性问题高发
+                } else {
+                    switchPlayer();
+                }
+            } catch (JSONException e) {
+                switchPlayer();
+            }
             play(false);
             return true;
         } else {

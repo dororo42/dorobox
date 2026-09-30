@@ -318,6 +318,15 @@ public abstract class BaseActivity extends AppCompatActivity implements CustomAd
 
     protected static BitmapDrawable globalWp = null;
 
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        // 内存吃紧时释放常驻壁纸位图，下次进页面重新解码
+        if (level >= TRIM_MEMORY_RUNNING_LOW && globalWp != null) {
+            globalWp = null;
+        }
+    }
+
     public void changeWallpaper(boolean force) {
         if (!force && globalWp != null) {
             getWindow().setBackgroundDrawable(globalWp);
