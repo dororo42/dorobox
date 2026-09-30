@@ -100,7 +100,7 @@ public class AppDataManager {
                             super.onOpen(db);
 //                        LOG.i("数据库打开成功");
                         }
-                    }).allowMainThreadQueries()//可以在主线程操作
+                    })// allowMainThreadQueries 已移除（审查报告 P1-4）：所有 DB 访问统一经 DbIo 在 IO 线程执行
                     .build();
         return dbInstance;
     }
