@@ -113,9 +113,10 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 ### 延后项
 
 - 从 `settings.gradle`/依赖中物理移除 `xwalk` 模块与 `XWalkInitDialog`/`XWalkUtils` 相关代码（P0-3 的收尾；运行时路径已断，编译期仍在）。
-- P1 残余：`allowMainThreadQueries` 完全移除（读路径逐点异步化）；Hawk 热点 key 内存缓存。
+- P1 残余：Hawk 热点 key 内存缓存（次要，未做）。
 - [x] **EPG/直播列表整表刷新 —— 已完成（2026-09-30）**：移除 `LivePlayActivity` 两处多余的 `notifyDataSetChanged`（回看选择场景），`LiveEpgAdapter` 的 `setShiyiSelection`/`setSelectedEpgIndex` 改为旧+新两项 `notifyItemChanged` 精确刷新（EPG 单日数百条，整表重绑每条还要做 Date 比较）。分组/日期切换的 `setNewData` 属整体换数据，保留。
-- P2 残余：media3 1.3.1 → 新版本升级评估。
+- [x] **`allowMainThreadQueries` 完全移除 —— 已完成（2026-09-30，P1-4 收尾）**：新建 `data/DbIo.java` 统一数据库 IO 门面（单线程 executor；主线程读有界等待 3s，主线程零直接 SQLite IO；`fetch()` 真异步回调主线程）。`RoomDataManger`/`DbHelper`/`CacheManager` 全部 DAO 访问改道 DbIo，13 个调用方文件基本零改动；`HistoryActivity`/`CollectActivity` 整表加载改 `fetchXxx` 真异步。CI 通过。
+- [x] **media3 升级 —— 已完成（2026-09-30，P2-10）**：`1.3.1 → 1.4.1`（HLS/DASH/解码修复）。选 1.4.1 而非更高版本的原因：`nextlib-media3ext:0.7.1` 按 media3 1.3.1 构建，跨大版本有二进制兼容风险；1.4.1 与 1.3.1 API 差异最小。**遗留：真机需过播放冒烟**（尤其 FFmpeg 软解路径）；nextlib 后续升级需等其 release 对应新版 media3。
 - [x] **P2-8《Spider 开发指南》+ 2 个示例源 —— 已完成（2026-09-30）**：`docs/SPIDER_GUIDE.md`（API 契约/JS 约定/jar-md5/XPath/调试回路/安全须知）+ `docs/examples/spider_demo.js` + `docs/examples/xpath_demo.json`。
 - `usesCleartextTraffic="true"` 与 `MANAGE_EXTERNAL_STORAGE`、`REQUEST_INSTALL_PACKAGES` 权限收敛（报告 M-5）。
 
