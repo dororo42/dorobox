@@ -609,7 +609,7 @@ public class SourceViewModel extends ViewModel {
                 final String keyword = wd;
                 Future<String> future = spiderSearchPool.submit(new Callable<String>() {
                     @Override
-                    public String call() {
+                    public String call() throws Exception {
                         Spider sp = ApiConfig.get().getCSP(ApiConfig.get().getSource(sourceKey));
                         return sp.searchContent(keyword, false);
                     }
