@@ -107,13 +107,15 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 
 - [x] **远程仓库血统不一致 —— 已解决（2026-09-30）**：原 `dororo42/dorobox` main 是 FongMi/TV 内容。已用 gh CLI 把旧仓库改名为 `dororo42/tv-fongmi`，新建空的 `dororo42/dorobox`，本地补全浅克隆历史后 `git push -u origin main` 成功。
 - [x] **编译验证 —— 已解决（2026-09-30，GitHub Actions）**：新增 `.github/workflows/build.yml`（runner 自带 SDK + JDK 17），debug（armeabi/arm64）与未签名 release（R8+shrinkResources）构建成功。过程中修了两个问题：Chaquopy 配置期读 local.properties（CI 生成之）、pyramid buildPython 参数化（P2-9）、以及 search Callable 漏声明 `throws Exception`（P1 代码唯一编译错误）。产物在 Actions artifact（14 天保留）。
-- [ ] token 如何触达用户/遥控端尚无 UI—— 需要：在设置页显示 token（或生成带 token 的二维码），否则 AndServer 推送与文件端点实际不可用。
+- [x] **token 无 UI 出口 —— 已解决（2026-09-30）**：设置页新增"远程控制令牌"行（`llServerToken`/`tvServerToken`），点击复制完整 token 到剪贴板并 Toast 显示。AndServer 推送与文件端点自此实际可用。
+- [ ] token 二维码/局域网一键推送指引未做（锦上添花项）。
 
 ### 延后项
 
 - 从 `settings.gradle`/依赖中物理移除 `xwalk` 模块与 `XWalkInitDialog`/`XWalkUtils` 相关代码（P0-3 的收尾；运行时路径已断，编译期仍在）。
 - P1 残余：`allowMainThreadQueries` 完全移除（读路径逐点异步化）；EPG/直播列表 DiffUtil（`LivePlayActivity:1222,1261` 一带）；Hawk 热点 key 内存缓存。
-- P2 残余：《Spider 开发指南》+ 2 个示例源；pyramid buildPython 路径参数化；media3 1.3.1 → 新版本升级评估。
+- P2 残余：media3 1.3.1 → 新版本升级评估。
+- [x] **P2-8《Spider 开发指南》+ 2 个示例源 —— 已完成（2026-09-30）**：`docs/SPIDER_GUIDE.md`（API 契约/JS 约定/jar-md5/XPath/调试回路/安全须知）+ `docs/examples/spider_demo.js` + `docs/examples/xpath_demo.json`。
 - `usesCleartextTraffic="true"` 与 `MANAGE_EXTERNAL_STORAGE`、`REQUEST_INSTALL_PACKAGES` 权限收敛（报告 M-5）。
 
 ## 接手方必读
