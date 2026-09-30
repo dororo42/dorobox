@@ -14,6 +14,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Chaquopy 插件在配置期读取 local.properties；runner 的 SDK 路径由 ANDROID_HOME 提供
+      - name: Prepare local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
       - name: Set up JDK 17 (AGP 7.4.2 要求 11-17)
         uses: actions/setup-java@v4
         with:
