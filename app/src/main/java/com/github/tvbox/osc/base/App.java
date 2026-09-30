@@ -14,6 +14,7 @@ import com.github.tvbox.osc.callback.EmptyCallback;
 import com.github.tvbox.osc.callback.LoadingCallback;
 import com.github.tvbox.osc.data.AppDataManager;
 import com.github.tvbox.osc.server.ControlManager;
+import com.github.tvbox.osc.util.CrashHandler;
 import com.github.tvbox.osc.util.EpgUtil;
 import com.github.tvbox.osc.util.FileUtils;
 import com.github.tvbox.osc.util.HawkConfig;
@@ -61,6 +62,8 @@ public class App extends MultiDexApplication {
     @Override
     public void onCreate() {
         super.onCreate();
+        // 全局崩溃捕获：老盒子闪退可取证（日志写入 files/crash/）
+        CrashHandler.install(this);
         SubtitleHelper.initSubtitleColor(this);
         initParams();
         // takagen99 : Initialize Locale

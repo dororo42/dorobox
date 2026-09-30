@@ -1842,7 +1842,7 @@ public class PlayActivity extends BaseActivity {
 
     void loadWebView(String url) {
         if (mSysWebView == null && mXwalkWebView == null) {
-            boolean useSystemWebView = Hawk.get(HawkConfig.PARSE_WEBVIEW, true);
+            boolean useSystemWebView = true; // Crosswalk 已停用：EOL Chromium 53 + 镜像下载无完整性校验
             if (!useSystemWebView) {
                 XWalkUtils.tryUseXWalk(mContext, new XWalkUtils.XWalkState() {
                     @Override
@@ -2014,9 +2014,9 @@ public class PlayActivity extends BaseActivity {
         final WebSettings settings = webView.getSettings();
         settings.setNeedInitialFocus(false);
         settings.setAllowContentAccess(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowUniversalAccessFromFileURLs(true);
-        settings.setAllowFileAccessFromFileURLs(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        settings.setAllowFileAccessFromFileURLs(false);
         settings.setDatabaseEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setJavaScriptEnabled(true);
@@ -2073,7 +2073,8 @@ public class PlayActivity extends BaseActivity {
 
         @Override
         public void onReceivedSslError(WebView webView, SslErrorHandler sslErrorHandler, SslError sslError) {
-            sslErrorHandler.proceed();
+            // SSL 错误一律取消加载，不再放行中间人
+            sslErrorHandler.cancel();
         }
 
         @Override
@@ -2195,9 +2196,9 @@ public class PlayActivity extends BaseActivity {
         /* 添加webView配置 */
         final XWalkSettings settings = webView.getSettings();
         settings.setAllowContentAccess(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowUniversalAccessFromFileURLs(true);
-        settings.setAllowFileAccessFromFileURLs(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        settings.setAllowFileAccessFromFileURLs(false);
         settings.setDatabaseEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setJavaScriptEnabled(true);
@@ -2338,7 +2339,8 @@ public class PlayActivity extends BaseActivity {
 
         @Override
         public void onReceivedSslError(XWalkView view, ValueCallback<Boolean> callback, SslError error) {
-            callback.onReceiveValue(true);
+            // SSL 错误不再放行
+            callback.onReceiveValue(false);
         }
     }
 

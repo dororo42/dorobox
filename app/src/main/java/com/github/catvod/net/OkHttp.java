@@ -48,7 +48,7 @@ public class OkHttp {
     }
 
     public void setDoh(Doh doh) {
-        OkHttpClient dohClient = new OkHttpClient.Builder().cache(new Cache(Path.doh(), CACHE)).hostnameVerifier(SSLCompat.VERIFIER).sslSocketFactory(new SSLCompat(), SSLCompat.TM).build();
+        OkHttpClient dohClient = new OkHttpClient.Builder().cache(new Cache(Path.doh(), CACHE)).hostnameVerifier(SSLCompat.VERIFIER).sslSocketFactory(SSLCompat.create(), SSLCompat.TM).build();
         dns = doh.getUrl().isEmpty() ? null : new DnsOverHttps.Builder().client(dohClient).url(HttpUrl.get(doh.getUrl())).bootstrapDnsHosts(doh.getHosts()).build();
         client = null;
     }
@@ -132,7 +132,7 @@ public class OkHttp {
     }
 
     private static OkHttpClient.Builder getBuilder() {
-        OkHttpClient.Builder builder = new OkHttpClient.Builder().addInterceptor(new OkhttpInterceptor()).connectTimeout(TIMEOUT, TimeUnit.MILLISECONDS).readTimeout(TIMEOUT, TimeUnit.MILLISECONDS).writeTimeout(TIMEOUT, TimeUnit.MILLISECONDS).dns(dns()).hostnameVerifier(SSLCompat.VERIFIER).sslSocketFactory(new SSLCompat(), SSLCompat.TM);
+        OkHttpClient.Builder builder = new OkHttpClient.Builder().addInterceptor(new OkhttpInterceptor()).connectTimeout(TIMEOUT, TimeUnit.MILLISECONDS).readTimeout(TIMEOUT, TimeUnit.MILLISECONDS).writeTimeout(TIMEOUT, TimeUnit.MILLISECONDS).dns(dns()).hostnameVerifier(SSLCompat.VERIFIER).sslSocketFactory(SSLCompat.create(), SSLCompat.TM);
         builder.proxySelector(selector());
         return builder;
     }

@@ -18,7 +18,11 @@ class WebController {
 
     @GetMapping("/api/updateUrl")
     @ResponseBody
-    fun play(@QueryParam("url") url: String): String {
+    fun play(@QueryParam("url") url: String, @QueryParam("token") token: String?): String {
+        // 推送可劫持播放内容，须携带有效 token
+        if (!ServerToken.verify(token)) {
+            return "forbidden"
+        }
         return try {
             EventBus.getDefault().post(RefreshEvent(RefreshEvent.TYPE_PUSH_URL, url))
             "ok"

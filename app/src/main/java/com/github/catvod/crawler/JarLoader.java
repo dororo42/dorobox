@@ -7,8 +7,10 @@ import android.util.Log;
 
 import com.github.tvbox.osc.base.App;
 import com.github.tvbox.osc.util.FileUtils;
+import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.MD5;
 import com.lzy.okgo.OkGo;
+import com.orhanobut.hawk.Hawk;
 
 import org.json.JSONObject;
 
@@ -144,6 +146,18 @@ public class JarLoader {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+            }
+            // fail-closed：声明了 md5 但校验不匹配 → 拒绝执行（防中间人替换 jar）
+            if (!md5.isEmpty() && !MD5.getFileMd5(cache).equalsIgnoreCase(md5)) {
+                Log.e("JarLoader", "jar md5 mismatch, refuse to load: " + jar);
+                cache.delete();
+                return null;
+            }
+            // fail-closed：严格模式下未声明 md5 的 jar 拒绝执行（可在设置中关闭）
+            if (md5.isEmpty() && Hawk.get(HawkConfig.JAR_VERIFY_STRICT, false)) {
+                Log.e("JarLoader", "jar without md5 refused in strict mode: " + jar);
+                cache.delete();
+                return null;
             }
             loadClassLoader(cache.getAbsolutePath(), key);
             return classLoaders.get(key);

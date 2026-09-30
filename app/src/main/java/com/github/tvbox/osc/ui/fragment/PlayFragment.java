@@ -1727,7 +1727,7 @@ public class PlayFragment extends BaseLazyFragment {
 
     void loadWebView(String url) {
         if (mSysWebView == null && mXwalkWebView == null) {
-            boolean useSystemWebView = Hawk.get(HawkConfig.PARSE_WEBVIEW, true);
+            boolean useSystemWebView = true; // Crosswalk 已停用：EOL Chromium 53 + 镜像下载无完整性校验
             if (!useSystemWebView) {
                 XWalkUtils.tryUseXWalk(mContext, new XWalkUtils.XWalkState() {
                     @Override
