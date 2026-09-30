@@ -105,30 +105,52 @@ public class AppDataManager {
         return dbInstance;
     }
 
-    public static boolean backup(File path) throws IOException {
-        if (dbInstance != null && dbInstance.isOpen()) {
-            dbInstance.close();
-        }
-        File db = App.getInstance().getDatabasePath(dbPath());
-        if (db.exists()) {
-            FileUtils.copyFile(db, path);
-            return true;
-        } else {
-            return false;
-        }
+    // close+copy 全程放入 DbIo 串行队列，避免与在飞 DB 任务竞态（审查报告第二轮 H-1）
+    public static boolean backup(final File path) {
+        Boolean result = com.github.tvbox.osc.data.DbIo.run(new java.util.concurrent.Callable<Boolean>() {
+            @Override
+            public Boolean call() {
+                if (dbInstance != null && dbInstance.isOpen()) {
+                    dbInstance.close();
+                }
+                File db = App.getInstance().getDatabasePath(dbPath());
+                if (db.exists()) {
+                    try {
+                        FileUtils.copyFile(db, path);
+                        return true;
+                    } catch (java.io.IOException e) {
+                        e.printStackTrace();
+                        return false;
+                    }
+                }
+                return false;
+            }
+        });
+        return result == Boolean.TRUE;
     }
 
-    public static boolean restore(File path) throws IOException {
-        if (dbInstance != null && dbInstance.isOpen()) {
-            dbInstance.close();
-        }
-        File db = App.getInstance().getDatabasePath(dbPath());
-        if (db.exists()) {
-            db.delete();
-        }
-        if (!db.getParentFile().exists())
-            db.getParentFile().mkdirs();
-        FileUtils.copyFile(path, db);
-        return true;
+    public static boolean restore(final File path) {
+        Boolean result = com.github.tvbox.osc.data.DbIo.run(new java.util.concurrent.Callable<Boolean>() {
+            @Override
+            public Boolean call() {
+                if (dbInstance != null && dbInstance.isOpen()) {
+                    dbInstance.close();
+                }
+                File db = App.getInstance().getDatabasePath(dbPath());
+                if (db.exists()) {
+                    db.delete();
+                }
+                if (!db.getParentFile().exists())
+                    db.getParentFile().mkdirs();
+                try {
+                    FileUtils.copyFile(path, db);
+                } catch (java.io.IOException e) {
+                    e.printStackTrace();
+                    return false;
+                }
+                return true;
+            }
+        });
+        return result == Boolean.TRUE;
     }
 }

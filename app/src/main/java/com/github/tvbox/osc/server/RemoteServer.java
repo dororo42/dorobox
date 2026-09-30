@@ -134,9 +134,14 @@ public class RemoteServer extends NanoHTTPD {
             if (fileName.indexOf('?') >= 0) {
                 fileName = fileName.substring(0, fileName.indexOf('?'));
             }
-            // 危险接口（文件读写删/DoH）统一鉴权：token 经 ?token= 或 X-Token 头传入
-            if (isProtected(fileName, session.getMethod()) && !ServerToken.verify(getToken(session))) {
-                return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden");
+            // 危险接口（文件读写删/DoH）统一鉴权：token 经 ?token= 或 X-Token 头传入。
+            // GET 类只读端点对本机自身请求豁免（clan:// 内部拉取走 http://<LAN-IP>:9978/file/...，
+            // remote IP 为本机自身）；写/删端点始终要求 token，局域网其它设备不受豁免。
+            if (isProtected(fileName, session.getMethod())) {
+                boolean exempt = session.getMethod() == Method.GET && isSelfRequest(session);
+                if (!exempt && !ServerToken.verify(getToken(session))) {
+                    return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden");
+                }
             }
             if (session.getMethod() == Method.GET) {
                 for (RequestProcess process: getRequestList) {
@@ -350,6 +355,19 @@ public class RemoteServer extends NanoHTTPD {
         String token = session.getParms().get("token");
         if (token == null) token = session.getHeaders().get("x-token");
         return token;
+    }
+
+    /** 是否为本机自身发起的请求（loopback 或源 IP == 本机 LAN IP）。 */
+    private boolean isSelfRequest(IHTTPSession session) {
+        try {
+            String remote = session.getRemoteIpAddress();
+            if (remote == null) return false;
+            if (remote.equals("127.0.0.1") || remote.equals("::1") || remote.equals("0:0:0:0:0:0:0:1")) return true;
+            String local = getLocalIPAddress(mContext);
+            return !"0.0.0.0".equals(local) && local.equals(remote);
+        } catch (Throwable th) {
+            return false;
+        }
     }
 
     /** canonical path 包含校验：目标必须位于 root 内部，防 `..` 越界读写删。 */
