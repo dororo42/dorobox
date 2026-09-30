@@ -6,6 +6,6 @@ takagen99/Box 的本地开发副本（TVBox 血统安卓应用，Java，minSdk 2
 
 - Latest: `handoffs/2026-09-30-2120-box-p0-security-hardening/HANDOFF.md`
 - Branch: main（已推送至 `dororo42/dorobox`；原 FongMi 内容仓库已改名 `dororo42/tv-fongmi`）
-- Status: 进行中 —— CI 已跑通；token 设置页 UI 与 Spider 开发指南已完成；剩余为 allowMainThreadQueries 异步化、EPG DiffUtil、media3 升级评估
+- Status: 进行中 —— CI 已跑通；token UI、Spider 指南、EPG 整表刷新治理已完成；剩余为 allowMainThreadQueries 全量异步化、Hawk 热点缓存、media3 升级评估
 
 任何 agent 开始工作前，先读上面的 HANDOFF.md。这份指针由 agent-handoff 维护，手工交接时请同步更新。
