@@ -187,9 +187,9 @@
 -keep class tv.danmaku.ijk.** { *; }
 -dontwarn tv.danmaku.ijk.**
 
-# ExoPlayer
--keep class com.google.androidx.media3.exoplayer.** { *; }
--dontwarn com.google.androidx.media3.exoplayer.**
+# ExoPlayer（com.google.androidx.media3 是写反的无效包名，media3 的真实包是 androidx.media3）
+-keep class androidx.media3.exoplayer.** { *; }
+-dontwarn androidx.media3.exoplayer.**
 -keep class androidx.media3.exoplayer.** { *; }
 -dontwarn androidx.media3.exoplayer.**
 

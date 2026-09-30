@@ -44,13 +44,27 @@ public class JsSpider extends Spider {
     private final String key;
     private final String api;
     private boolean cat;
+    // 惰性初始化标记：VM 创建（加载 cheerio/crypto-js/模板等完整 VM）开销大，推迟到首个 JS 调用
+    private volatile boolean inited = false;
+    private volatile boolean initQueued = false;
 
     public JsSpider(String key, String api, Class<?> cls) throws Exception {
         this.key = "J" + MD5.encode(key);
         this.executor = Executors.newSingleThreadExecutor();
         this.api = api;
         this.dex = cls;
-        initializeJS();
+    }
+
+    /** 首个 JS 调用时才排队初始化 VM；单线程 executor 保证 init 先于任何 JS 调用执行。 */
+    private void ensureInit() {
+        if (inited || initQueued) return;
+        initQueued = true;
+        try {
+            initializeJS();
+        } catch (Exception e) {
+            initQueued = false;
+            throw new RuntimeException(e);
+        }
     }
     public void cancelByTag() {
         Connect.cancelByTag("js_okhttp_tag");
@@ -66,6 +80,7 @@ public class JsSpider extends Spider {
 
     private Object call(String func, Object... args) {
 //        return executor.submit((FunCall.call(jsObject, func, args))).get();
+        ensureInit();
         try {
             return submit(() -> Async.run(jsObject, func, args).get()).get();  // 等待 executor 线程完成 JS 调用
         } catch (InterruptedException | ExecutionException e) {
@@ -114,6 +129,7 @@ public class JsSpider extends Spider {
     @Override
     public String categoryContent(String tid, String pg, boolean filter, HashMap<String, String> extend)  {
         try {
+            ensureInit();
             JSObject obj = submit(() -> new JSUtils<String>().toObj(ctx, extend)).get();
             return (String) call("category", tid, pg, filter, obj);
         }catch (Exception e){
@@ -150,6 +166,7 @@ public class JsSpider extends Spider {
     @Override
     public String playerContent(String flag, String id, List<String> vipFlags) {
         try {
+            ensureInit();
             JSArray array = submit(() -> new JSUtils<String>().toArray(ctx, vipFlags)).get();
             return (String) call("play", flag, id, array);
         }catch (Exception e){
@@ -209,8 +226,8 @@ public class JsSpider extends Spider {
             if (ctx == null) createCtx();
             if (dex != null) createDex();
 
-            String content = FileUtils.loadModule(api);            
-            if (TextUtils.isEmpty(content)) {return null;}
+            String content = FileUtils.loadModule(api);
+            if (TextUtils.isEmpty(content)) {inited = true; return null;}
             
             if(content.startsWith("//bb")){
                 cat = true;
@@ -234,6 +251,7 @@ public class JsSpider extends Spider {
                 //ctx.evaluate("globalThis." + key + " = __JS_SPIDER__;");                
             }
             jsObject = (JSObject) ctx.get(ctx.getGlobalObject(), key);
+            inited = true;
             return null;
         }).get();
     }

@@ -31,7 +31,7 @@ android {
     buildTypes {
         release {
             minifyEnabled true
-
+            shrinkResources true  // 移除未引用资源，减小老盒子 APK 体积与安装 footprint
         }
     }
 

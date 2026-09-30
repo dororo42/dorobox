@@ -596,8 +596,8 @@ public class SourceViewModel extends ViewModel {
         }
     }
 
-    // 搜索专用线程池：cached 模式，慢源/死源不会阻塞其他源，也不会饿死自身
-    private static final ExecutorService spiderSearchPool = Executors.newCachedThreadPool();
+    // 搜索专用线程池：限制并发 4，防止 30+ JS 源全量 fan-out 时低配机 OOM；配合 15s 超时防死源占坑
+    private static final ExecutorService spiderSearchPool = Executors.newFixedThreadPool(4);
     private static final int SEARCH_TIMEOUT_SECONDS = 15;
 
     // searchContent
