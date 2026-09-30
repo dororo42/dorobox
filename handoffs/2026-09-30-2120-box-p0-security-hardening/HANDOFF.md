@@ -102,6 +102,7 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 
 ### Blocker / 未决问题
 
+- [ ] **远程仓库血统不一致（已决策，待用户在 GitHub 侧处理）**：`dororo42/dorobox` 仓库现 main 是 FongMi/TV 内容（HEAD `a4d00938c`，与 `/home/doro/TV` fongmi 分支同源），与 takagen99/Box 无共同祖先。用户已决策"先不动远程"；本地 Box 仓库已配 `origin`→dorobox、`upstream`→takagen99/Box，**在用户整理好 GitHub 仓库（改名/清空/另建）之前不要 push**。FongMi 内容在 `dororo42/TV` 有完整副本。
 - [ ] 编译验证未执行（本机无 Android SDK platforms；JDK 25 与 AGP 7.4.2 不兼容）—— 需要：装有 JDK 11–17 + Android SDK 的环境，或在本机安装两者。
 - [ ] token 如何触达用户/遥控端尚无 UI—— 需要：在设置页显示 token（或生成带 token 的二维码），否则 AndServer 推送与文件端点实际不可用。
 
@@ -129,6 +130,7 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 
 ### 已知坑
 
+- **远程命名**：`origin` = dororo42/dorobox（用户 fork，但仓库 main 血统是 FongMi/TV，勿直接 push main）；`upstream` = takagen99/Box（真上游）。历史遗留：之前按 FongMi/TV 开发时把内容推进了 dorobox。
 - 本机 `java` 是 JDK 25：不要尝试直接跑 `./gradlew`，会报 AGP 版本不兼容。
 - `app/libs` 与 `jniLibs` 有提交进仓库的二进制（42MB `.so` 等），clone/构建耗时较长属正常。
 - OkGo 的 `OkGo.<File>get(jar).execute()` 走的是 OkGoHelper 初始化的全局 client，其 SSL 已改为安全默认——自签名证书的源会开始失败，这是预期行为，个别源可用 `createTrustAll` 思路做按源 opt-in（尚未实现 UI）。
