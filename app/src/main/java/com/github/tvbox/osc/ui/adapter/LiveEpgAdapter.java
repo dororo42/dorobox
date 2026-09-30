@@ -111,11 +111,13 @@ public class LiveEpgAdapter extends BaseQuickAdapter<Epginfo, BaseViewHolder> {
     }
 
     public void setShiyiSelection(int i, boolean t, String currentEpgDate) {
+        int old = this.selectedEpgIndex;
         this.selectedEpgIndex = i;
         this.shiyiDate = t ? currentEpgDate : null;
         ShiyiSelection = t;
-        notifyItemChanged(this.selectedEpgIndex);
-
+        // 精确刷新旧/新选中项，替代调用方的 notifyDataSetChanged 整表刷新（EPG 单日数百条）
+        if (old != -1) notifyItemChanged(old);
+        if (i != -1 && i != old) notifyItemChanged(i);
     }
 
     public int getSelectedIndex() {
@@ -124,7 +126,9 @@ public class LiveEpgAdapter extends BaseQuickAdapter<Epginfo, BaseViewHolder> {
 
     public void setSelectedEpgIndex(int selectedEpgIndex) {
         if (selectedEpgIndex == this.selectedEpgIndex) return;
+        int old = this.selectedEpgIndex;
         this.selectedEpgIndex = selectedEpgIndex;
+        if (old != -1) notifyItemChanged(old);
         if (this.selectedEpgIndex != -1)
             notifyItemChanged(this.selectedEpgIndex);
     }
