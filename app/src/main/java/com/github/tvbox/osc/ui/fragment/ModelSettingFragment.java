@@ -31,7 +31,6 @@ import com.github.tvbox.osc.ui.dialog.HomeIconDialog;
 import com.github.tvbox.osc.ui.dialog.MediaSettingDialog;
 import com.github.tvbox.osc.ui.dialog.ResetDialog;
 import com.github.tvbox.osc.ui.dialog.SelectDialog;
-import com.github.tvbox.osc.ui.dialog.XWalkInitDialog;
 import com.github.tvbox.osc.server.ServerToken;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
 import com.github.tvbox.osc.util.HawkConfig;
@@ -523,19 +522,11 @@ public class ModelSettingFragment extends BaseLazyFragment {
             @Override
             public void onClick(View v) {
                 FastClickCheckUtil.check(v);
-                boolean useSystem = !Hawk.get(HawkConfig.PARSE_WEBVIEW, true);
-                Hawk.put(HawkConfig.PARSE_WEBVIEW, useSystem);
-                tvParseWebView.setText(Hawk.get(HawkConfig.PARSE_WEBVIEW, true) ? "系统自带" : "XWalkView");
-                if (!useSystem) {
-                    Toast.makeText(mContext, "注意: XWalkView只适用于部分低Android版本，Android5.0以上推荐使用系统自带", Toast.LENGTH_LONG).show();
-                    XWalkInitDialog dialog = new XWalkInitDialog(mContext);
-                    dialog.setOnListener(new XWalkInitDialog.OnListener() {
-                        @Override
-                        public void onchange() {
-                        }
-                    });
-                    dialog.show();
-                }
+                // XWalk 已停用（EOL Chromium 53 + 镜像下载无完整性校验，审查报告 H-1）：
+                // 运行时强制系统 WebView，此处仅提示，避免 UI 与实际行为不一致
+                Hawk.put(HawkConfig.PARSE_WEBVIEW, true);
+                tvParseWebView.setText("系统自带");
+                Toast.makeText(mContext, "XWalkView 已停用（内核过旧且存在安全隐患），统一使用系统自带 WebView", Toast.LENGTH_LONG).show();
             }
         });
         // Select System Render ( Surface/Texture View ) ---------------------

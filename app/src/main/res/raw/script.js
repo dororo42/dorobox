@@ -1,3 +1,21 @@
+// 远程控制令牌：与盒子端"设置-远程控制令牌"一致；首次使用时输入并保存在本浏览器
+let TVBOX_TOKEN = localStorage.getItem('tvbox_token') || '';
+
+function withToken(kv) {
+    kv = kv || {};
+    kv['token'] = TVBOX_TOKEN;
+    return kv;
+}
+
+function askToken(force) {
+    if (TVBOX_TOKEN && !force) return;
+    let t = prompt('请输入远程控制令牌\n（盒子端：设置 → 远程控制令牌，点击可复制）', TVBOX_TOKEN || '');
+    if (t && t.trim()) {
+        TVBOX_TOKEN = t.trim();
+        localStorage.setItem('tvbox_token', TVBOX_TOKEN);
+    }
+}
+
 function search() {
     doAction('search', { word: $('#search_key_word').val() });
 }
@@ -25,9 +43,14 @@ function push() {
 function doAction(action, kv) {
     kv['do'] = action;
     // alert(JSON.stringify(kv));
-    $.post('/action', kv, function (data) {
+    $.post('/action', withToken(kv), function (data) {
         console.log(data);
         // alert(data);
+    }).fail(function (jqXHR) {
+        if (jqXHR && jqXHR.status === 403) {
+            warnToast('需要远程控制令牌');
+            askToken(true);
+        }
     });
     return false;
 }
@@ -107,7 +130,7 @@ function hideFileInfo() {
 
 function listFile(path) {
     $('#loadingToast').show();
-    $.get('/file/' + path, function (res) {
+    $.get('/file/' + path, { token: TVBOX_TOKEN }, function (res) {
         let info = JSON.parse(res);
         let parent = info.parent;
         let canDel = info.del === 1;
@@ -135,7 +158,12 @@ function listFile(path) {
             }
         });
         $('#loadingToast').hide();
-    }).fail(function () {
+    }).fail(function (jqXHR) {
+        if (jqXHR && jqXHR.status === 403 && !TVBOX_TOKEN) {
+            // 首次 403：引导输入令牌后重试一次
+            askToken(true);
+            if (TVBOX_TOKEN) { listFile(path); return; }
+        }
         warnToast('读取本地文件失败，可能没有存储权限');
         $('#loadingToast').hide();
     });
@@ -174,6 +202,7 @@ function doUpload(yes) {
             return false;
         var formData = new FormData();
         formData.append('path', current_root);
+        formData.append('token', TVBOX_TOKEN);
         for (i = 0; i < files.length; i++) {
             formData.append("files-" + i, files[i]);
         }
@@ -203,7 +232,7 @@ function doNewFolder(yes) {
         if (name.length <= 0)
             return false;
         $('#loadingToast').show();
-        $.post('/newFolder', { path: current_root, name: '' + name }, function (data) {
+        $.post('/newFolder', withToken({ path: current_root, name: '' + name }), function (data) {
             $('#loadingToast').hide();
             listFile(current_root);
         });
@@ -220,7 +249,7 @@ function doDelFolder(yes) {
     $('#delFolder').hide();
     if (yes == 1) {
         $('#loadingToast').show();
-        $.post('/delFolder', { path: current_root }, function (data) {
+        $.post('/delFolder', withToken({ path: current_root }), function (data) {
             $('#loadingToast').hide();
             listFile(current_parent);
         });
@@ -236,7 +265,7 @@ function doDelFolder(yes) {
     $('#delFolder').hide();
     if (yes == 1) {
         $('#loadingToast').show();
-        $.post('/delFolder', { path: current_root }, function (data) {
+        $.post('/delFolder', withToken({ path: current_root }), function (data) {
             $('#loadingToast').hide();
             listFile(current_parent);
         });
@@ -253,7 +282,7 @@ function doDelFile(yes) {
     $('#delFile').hide();
     if (yes == 1) {
         $('#loadingToast').show();
-        $.post('/delFile', { path: current_file }, function (data) {
+        $.post('/delFile', withToken({ path: current_file }), function (data) {
             $('#loadingToast').hide();
             listFile(current_root);
         });

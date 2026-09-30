@@ -25,7 +25,20 @@ import java.util.concurrent.TimeoutException;
 public class DbIo {
     private static final String TAG = "DbIo";
     private static final long MAIN_WAIT_MS = 3000;
+    private static final long BG_WAIT_MS = 30000;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+    // 记录 executor 线程，用于重入检测：DB 任务内部再调 run() 时直接执行，防止单线程池自死锁
+    private static volatile Thread dbThread;
+
+    static {
+        EXECUTOR.execute(new Runnable() {
+            @Override
+            public void run() {
+                dbThread = Thread.currentThread();
+                // 哨兵任务：仅标记线程身份，之后 executor 继续正常排队
+            }
+        });
+    }
 
     public interface Callback<T> {
         void onResult(T result);
@@ -33,18 +46,31 @@ public class DbIo {
 
     /** 提交无需返回值的写操作。 */
     public static void post(final Runnable task) {
+        if (Thread.currentThread() == dbThread) {
+            wrap(task).run();
+            return;
+        }
         EXECUTOR.execute(wrap(task));
     }
 
-    /** 需要返回值的读操作。主线程上最多等待 MAIN_WAIT_MS。 */
+    /** 需要返回值的读操作。主线程上最多等待 MAIN_WAIT_MS；其它线程 BG_WAIT_MS 兜底；DB 线程内重入直接执行。 */
     public static <T> T run(final Callable<T> task) {
+        // 重入：已在 DB 线程上（如 fetch 任务内部再调用读封装），直接执行防死锁
+        if (Thread.currentThread() == dbThread) {
+            try {
+                return task.call();
+            } catch (Exception e) {
+                Log.e(TAG, "db op failed (reentrant)", e);
+                return null;
+            }
+        }
         boolean onMain = Looper.myLooper() == Looper.getMainLooper();
         Future<T> future = EXECUTOR.submit(task);
         try {
-            return onMain ? future.get(MAIN_WAIT_MS, TimeUnit.MILLISECONDS) : future.get();
+            return future.get(onMain ? MAIN_WAIT_MS : BG_WAIT_MS, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
             future.cancel(true);
-            Log.e(TAG, "db op timeout on main thread", e);
+            Log.e(TAG, "db op timeout on " + (onMain ? "main" : "background") + " thread", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             Log.e(TAG, "db op interrupted", e);
