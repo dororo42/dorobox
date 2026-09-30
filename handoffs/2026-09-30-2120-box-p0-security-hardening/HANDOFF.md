@@ -21,7 +21,7 @@
 
 ## 当前状态摘要
 
-按 2026-09-30 的 Box 独立代码审查报告，**P0 三项已全部完成并提交**（commit `a8dfc43`，含 handoff 套件与 AGENTS.md）。随后完成 **P1 稳定性第 4–7 项的大部分**（见"已完成工作"），暂未提交。**编译验证始终被环境阻塞**（本机无 Android SDK platforms，JDK 25 与 AGP 7.4.2 不兼容），仅做了静态核查（IDE 诊断零告警）——接手方第一件事就是在有 SDK 的机器上跑 `assembleDebug`，把 P0+P1 一起验证。
+按 2026-09-30 的 Box 独立代码审查报告，P0/P1/P2 全清单已完成并全部经 **GitHub Actions CI 验证**（debug 双 ABI + release R8）。同日完成了**第二轮独立自审**（`docs/CODE_REVIEW_SELF_2026-09-30.md`），发现并修复了加固批次自身引入的 3 个严重回归：① DbIo 单线程池嵌套提交自死锁；② `/file` token 鉴权误伤 clan:// 本机配置拉取链路（已加本机自请求豁免）；③ 内置 Web 远控 UI 全部请求无 token 而 403（script.js 已接入 token + localStorage + 403 引导输入）。另修复 backup/restore 与 DB 队列竞态、XWalk 开关 UI 谎报状态。当前代码处于"报告关闭 + 自审关闭 + CI 全绿"状态；剩余为真机冒烟与少量可选优化（Hawk 热点缓存、token 二维码、xwalk 模块物理移除）。
 
 ## 最近提交（上下文参考）
 
@@ -139,6 +139,8 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 
 - **远程命名**：`origin` = dororo42/dorobox（用户 fork，Box 血统，正常 push）；`upstream` = takagen99/Box（真上游，只 fetch）。旧 FongMi 内容在 `dororo42/tv-fongmi`（2026-09-30 由 dorobox 改名而来）与 `dororo42/TV`。本地曾是浅克隆，已 `fetch upstream --unshallow` 补全。
 - **布局有 `res/layout` 与 `res/layout-v21` 双份**：API 21+（即全部目标设备）走 v21 变体，加控件两份都要改，否则 CI 会报 `cannot find symbol R.id.xxx`。
+- **给本地服务加鉴权/改路由前，先盘点全部合法调用方**：本轮自审发现 token 鉴权误伤了三类调用方——clan:// 内部拉取（经本机 LAN IP 回环访问 /file）、内置 Web 远控 UI（script.js）、LAN DoH 客户端。前两类已修复（自请求豁免 + script.js token 支持），DoH 客户端兼容属已知取舍。
+- `script.js` 存在预置的重复函数定义（delFolder/doDelFolder 各两份），改动时两处都要覆盖。
 - 本机 `java` 是 JDK 25：不要尝试直接跑 `./gradlew`，会报 AGP 版本不兼容——现在直接 push 让 CI 验证即可。
 - `app/libs` 与 `jniLibs` 有提交进仓库的二进制（42MB `.so` 等），clone/构建耗时较长属正常。
 - OkGo 的 `OkGo.<File>get(jar).execute()` 走的是 OkGoHelper 初始化的全局 client，其 SSL 已改为安全默认——自签名证书的源会开始失败，这是预期行为，个别源可用 `createTrustAll` 思路做按源 opt-in（尚未实现 UI）。
