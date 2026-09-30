@@ -5,6 +5,8 @@ import android.annotation.SuppressLint;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.security.KeyStore;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -16,14 +18,25 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
+/**
+ * TLS 兼容工厂：在老设备（Android 5/6）上强制启用 TLSv1.2 与现代密码套件。
+ * 安全默认：证书校验走系统信任库，不再全局安装 trust-all。
+ * trust-all 仅作为按源 opt-in 的兼容开关保留（createTrustAll / TRUST_ALL_VERIFIER），
+ * 不得设置为进程默认。
+ */
 public class SSLCompat extends SSLSocketFactory {
 
-    public static final HostnameVerifier VERIFIER = (hostname, session) -> true;
+    /** 安全默认：系统默认主机名校验（不再无条件放行）。 */
+    public static final HostnameVerifier VERIFIER = HttpsURLConnection.getDefaultHostnameVerifier();
+    /** 按源 opt-in：仅对明确声明"自签名证书"的源使用。 */
+    public static final HostnameVerifier TRUST_ALL_VERIFIER = (hostname, session) -> true;
+
     private static String[] cipherSuites;
     private static String[] protocols;
-    private SSLSocketFactory factory;
+    private final SSLSocketFactory factory;
 
     static {
         try {
@@ -42,13 +55,32 @@ public class SSLCompat extends SSLSocketFactory {
         }
     }
 
-    public SSLCompat() {
+    private SSLCompat(SSLSocketFactory factory) {
+        this.factory = factory;
+    }
+
+    /** 安全默认工厂：系统信任库校验 + TLS 协议升级。 */
+    public static SSLCompat create() {
+        try {
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(null, null, null);
+            return new SSLCompat(context.getSocketFactory());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new SSLCompat((SSLSocketFactory) SSLSocketFactory.getDefault());
+        }
+    }
+
+    /** 按源 opt-in 的 trust-all 兼容工厂，禁止全局默认使用。 */
+    @SuppressLint({"TrustAllX509TrustManager", "CustomX509TrustManager"})
+    public static SSLCompat createTrustAll() {
         try {
             SSLContext context = SSLContext.getInstance("TLS");
             context.init(null, new X509TrustManager[]{TM}, null);
-            HttpsURLConnection.setDefaultSSLSocketFactory(factory = context.getSocketFactory());
+            return new SSLCompat(context.getSocketFactory());
         } catch (Exception e) {
             e.printStackTrace();
+            return create();
         }
     }
 
@@ -102,20 +134,41 @@ public class SSLCompat extends SSLSocketFactory {
         if (cipherSuites != null) ssl.setEnabledCipherSuites(cipherSuites);
     }
 
-    @SuppressLint({"TrustAllX509TrustManager", "CustomX509TrustManager"})
+    /**
+     * 安全默认 TrustManager：委托系统信任库逐条校验证书链。
+     */
     public static final X509TrustManager TM = new X509TrustManager() {
 
-        @Override
-        public void checkClientTrusted(X509Certificate[] chain, String authType) {
+        private final X509TrustManager delegate = systemTrustManager();
+
+        private X509TrustManager systemTrustManager() {
+            try {
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init((KeyStore) null);
+                for (javax.net.ssl.TrustManager tm : tmf.getTrustManagers()) {
+                    if (tm instanceof X509TrustManager) return (X509TrustManager) tm;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return null;
         }
 
         @Override
-        public void checkServerTrusted(X509Certificate[] chain, String authType) {
+        public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+            if (delegate != null) delegate.checkClientTrusted(chain, authType);
+            else throw new CertificateException("No system TrustManager available");
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+            if (delegate != null) delegate.checkServerTrusted(chain, authType);
+            else throw new CertificateException("No system TrustManager available");
         }
 
         @Override
         public X509Certificate[] getAcceptedIssuers() {
-            return new X509Certificate[]{};
+            return delegate != null ? delegate.getAcceptedIssuers() : new X509Certificate[]{};
         }
     };
 }

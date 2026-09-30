@@ -8,7 +8,6 @@ import com.github.catvod.net.SSLCompat;
 import com.github.tvbox.osc.base.App;
 
 import com.lzy.okgo.OkGo;
-import com.lzy.okgo.https.HttpsUtils;
 import com.lzy.okgo.interceptor.HttpLoggingInterceptor;
 import com.lzy.okgo.model.HttpHeaders;
 import com.orhanobut.hawk.Hawk;
@@ -198,9 +197,9 @@ public class OkGoHelper {
 
     private static synchronized void setOkHttpSsl(OkHttpClient.Builder builder) {
         try {
-            final SSLSocketFactory sslSocketFactory = new SSLCompat();
+            final SSLSocketFactory sslSocketFactory = SSLCompat.create();
             builder.sslSocketFactory(sslSocketFactory, SSLCompat.TM);
-            builder.hostnameVerifier(HttpsUtils.UnSafeHostnameVerifier);
+            builder.hostnameVerifier(SSLCompat.VERIFIER);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -134,6 +134,10 @@ public class RemoteServer extends NanoHTTPD {
             if (fileName.indexOf('?') >= 0) {
                 fileName = fileName.substring(0, fileName.indexOf('?'));
             }
+            // 危险接口（文件读写删/DoH）统一鉴权：token 经 ?token= 或 X-Token 头传入
+            if (isProtected(fileName, session.getMethod()) && !ServerToken.verify(getToken(session))) {
+                return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden");
+            }
             if (session.getMethod() == Method.GET) {
                 for (RequestProcess process: getRequestList) {
                     if (process.isRequest(session, fileName)) {
@@ -167,6 +171,9 @@ public class RemoteServer extends NanoHTTPD {
                         String f = fileName.substring(6);
                         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
                         String file = root + "/" + f;
+                        if (!isInsideRoot(new File(root), new File(file))) {
+                            return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden path");
+                        }
                         File localFile = new File(file);
                         if (localFile.exists()) {
                             if (localFile.isFile()) {
@@ -231,13 +238,16 @@ public class RemoteServer extends NanoHTTPD {
                     Map < String, String > params = session.getParms();
                     if (fileName.equals("/upload")) {
                         String path = params.get("path");
+                        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
                         for (String k: files.keySet()) {
                             if (k.startsWith("files-")) {
                                 String fn = params.get(k);
                                 String tmpFile = files.get(k);
                                 File tmp = new File(tmpFile);
-                                String root = Environment.getExternalStorageDirectory().getAbsolutePath();
                                 File file = new File(root + "/" + path + "/" + fn);
+                                if (!isInsideRoot(new File(root), file) || !isInsideRoot(new File(root), new File(root + "/" + path))) {
+                                    return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden path");
+                                }
                                 if (file.exists()) file.delete();
                                 if (tmp.exists()) {
                                     if (fn.toLowerCase().endsWith(".zip")) {
@@ -255,6 +265,9 @@ public class RemoteServer extends NanoHTTPD {
                         String name = params.get("name");
                         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
                         File file = new File(root + "/" + path + "/" + name);
+                        if (!isInsideRoot(new File(root), file)) {
+                            return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden path");
+                        }
                         if (!file.exists()) {
                             file.mkdirs();
                             File flag = new File(root + "/" + path + "/" + name + "/.tvbox_folder");
@@ -265,6 +278,9 @@ public class RemoteServer extends NanoHTTPD {
                         String path = params.get("path");
                         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
                         File file = new File(root + "/" + path);
+                        if (!isInsideRoot(new File(root), file)) {
+                            return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden path");
+                        }
                         if (file.exists()) {
                             FileUtils.recursiveDelete(file);
                         }
@@ -273,6 +289,9 @@ public class RemoteServer extends NanoHTTPD {
                         String path = params.get("path");
                         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
                         File file = new File(root + "/" + path);
+                        if (!isInsideRoot(new File(root), file)) {
+                            return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden path");
+                        }
                         if (file.exists()) {
                             file.delete();
                         }
@@ -314,6 +333,33 @@ public class RemoteServer extends NanoHTTPD {
 
     public static Response createJSONResponse(Response.IStatus status, String text) {
         return newFixedLengthResponse(status, "application/json", text);
+    }
+
+    /** 危险接口清单：读文件/DoH(GET) 与 上传/建删目录/删文件(POST)。 */
+    private static boolean isProtected(String fileName, Method method) {
+        if (method == Method.GET) {
+            return fileName.startsWith("/file/") || fileName.equals("/dns-query");
+        } else if (method == Method.POST) {
+            return fileName.equals("/upload") || fileName.equals("/newFolder")
+                    || fileName.equals("/delFolder") || fileName.equals("/delFile");
+        }
+        return false;
+    }
+
+    private static String getToken(IHTTPSession session) {
+        String token = session.getParms().get("token");
+        if (token == null) token = session.getHeaders().get("x-token");
+        return token;
+    }
+
+    /** canonical path 包含校验：目标必须位于 root 内部，防 `..` 越界读写删。 */
+    private static boolean isInsideRoot(File root, File target) {
+        try {
+            String rootPath = root.getCanonicalPath() + File.separator;
+            return target.getCanonicalPath().startsWith(rootPath);
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     @SuppressLint("DefaultLocale")
@@ -401,10 +447,15 @@ public class RemoteServer extends NanoHTTPD {
         }
         ZipFile zip = new ZipFile(zipFilePath);
         Enumeration < ZipEntry > iter = (Enumeration < ZipEntry > ) zip.entries();
+        String destRoot = new File(destDirectory).getCanonicalPath() + File.separator;
         while (iter.hasMoreElements()) {
             ZipEntry entry = iter.nextElement();
             InputStream is = zip.getInputStream(entry);
             String filePath = destDirectory + File.separator + entry.getName();
+            // zip-slip 防护：拒绝解压到目标目录之外的条目
+            if (!new File(filePath).getCanonicalPath().startsWith(destRoot)) {
+                continue;
+            }
             if (!entry.isDirectory()) {
                 extractFile(is, filePath);
             } else {

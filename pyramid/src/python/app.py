@@ -13,7 +13,7 @@ def createFile(file_path):
         os.makedirs(file_path)
 
 def redirectResponse(tUrl):
-  rsp = requests.get(tUrl, allow_redirects=False,verify = False)
+  rsp = requests.get(tUrl, allow_redirects=False, verify=True)
   if 'Location' in rsp.headers:
     return redirectResponse(rsp.headers['Location'])
   else:
