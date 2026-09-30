@@ -106,7 +106,7 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 ### Blocker / 未决问题
 
 - [x] **远程仓库血统不一致 —— 已解决（2026-09-30）**：原 `dororo42/dorobox` main 是 FongMi/TV 内容。已用 gh CLI 把旧仓库改名为 `dororo42/tv-fongmi`，新建空的 `dororo42/dorobox`，本地补全浅克隆历史后 `git push -u origin main` 成功。
-- [ ] 编译验证未执行（本机无 Android SDK platforms；JDK 25 与 AGP 7.4.2 不兼容）—— 需要：装有 JDK 11–17 + Android SDK 的环境，或在本机安装两者。
+- [x] **编译验证 —— 已解决（2026-09-30，GitHub Actions）**：新增 `.github/workflows/build.yml`（runner 自带 SDK + JDK 17），debug（armeabi/arm64）与未签名 release（R8+shrinkResources）构建成功。过程中修了两个问题：Chaquopy 配置期读 local.properties（CI 生成之）、pyramid buildPython 参数化（P2-9）、以及 search Callable 漏声明 `throws Exception`（P1 代码唯一编译错误）。产物在 Actions artifact（14 天保留）。
 - [ ] token 如何触达用户/遥控端尚无 UI—— 需要：在设置页显示 token（或生成带 token 的二维码），否则 AndServer 推送与文件端点实际不可用。
 
 ### 延后项
@@ -143,10 +143,12 @@ TVBox 血统安卓应用：`ApiConfig` 加载配置（可加密/clan://）→ �
 ### 构建 / 运行 / 测试命令
 
 ```
-# 要求：JDK 11–17（AGP 7.4.2 + Gradle 7.5），Android SDK platform 28
+# 本机（需 JDK 11–17 + Android SDK platform 28，且先创建含 sdk.dir 的 local.properties）
 cd /home/doro/Box
-./gradlew assembleDebug          # normal flavor
-./gradlew assembleDebugPython    # python flavor（含 chaquopy，需要 buildPython）
+./gradlew assembleArmeabiGenericNormalDebug   # normal flavor 单 ABI，比 assembleDebug（8 个变体）快
+
+# CI（推荐，无需本地 SDK）：push 到 main 自动触发，或 Actions 页手动 workflow_dispatch
+# .github/workflows/build.yml：debug 双 ABI + 未签名 release + APK artifact
 ```
 
 ### 环境变量（只写名字，绝不写值）
