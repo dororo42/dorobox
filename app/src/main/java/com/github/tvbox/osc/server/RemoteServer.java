@@ -374,8 +374,10 @@ public class RemoteServer extends NanoHTTPD {
     /** canonical path 包含校验：目标必须位于 root 内部，防 `..` 越界读写删。 */
     private static boolean isInsideRoot(File root, File target) {
         try {
-            String rootPath = root.getCanonicalPath() + File.separator;
-            return target.getCanonicalPath().startsWith(rootPath);
+            // 根目录本身视为合法（网页文件管理列根目录 listFile('') 场景）；`..` 越界仍拒绝
+            String rootPath = root.getCanonicalPath();
+            String targetPath = target.getCanonicalPath();
+            return targetPath.equals(rootPath) || targetPath.startsWith(rootPath + File.separator);
         } catch (IOException e) {
             return false;
         }
