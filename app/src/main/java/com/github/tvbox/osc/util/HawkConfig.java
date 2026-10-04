@@ -50,7 +50,7 @@ public class HawkConfig {
     public static final String DOH_URL = "doh_url";         // DNS
     public static final String JAR_VERIFY_STRICT = "jar_verify_strict"; // 严格模式: 未声明 md5 的 jar/py 拒绝执行
     public static final String DEFAULT_PARSE = "parse_default";
-    public static final String PARSE_WEBVIEW = "parse_webview"; // true 系统 false xwalk
+    public static final String PARSE_WEBVIEW = "parse_webview"; // 嗅探WebView，恒为 true 系统（Crosswalk 已移除，键保留兼容旧数据）
     public static final String SEARCH_VIEW = "search_view";     // 0 列表 1 缩略图
     public static final String SOURCES_FOR_SEARCH = "checked_sources_for_search";
     public static final String STORAGE_DRIVE_SORT = "storage_drive_sort";
