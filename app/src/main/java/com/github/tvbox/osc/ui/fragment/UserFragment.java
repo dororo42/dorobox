@@ -111,7 +111,8 @@ public class UserFragment extends BaseLazyFragment implements View.OnClickListen
     private ImgUtil.Style style;
     @Override
     protected void init() {
-        EventBus.getDefault().register(this);
+        // m-4：SERVER_CONNECTION 空订阅已删，本类不再有任何 @Subscribe 方法——
+        // EventBus.register 对无订阅方法的类会抛 EventBusException（启动即崩），故不再注册
         tvDrive = findViewById(R.id.tvDrive);
         tvLive = findViewById(R.id.tvLive);
         tvSearch = findViewById(R.id.tvSearch);
@@ -370,6 +371,5 @@ public class UserFragment extends BaseLazyFragment implements View.OnClickListen
     @Override
     public void onDestroy() {
         super.onDestroy();
-        EventBus.getDefault().unregister(this);
     }
 }
