@@ -125,13 +125,9 @@
     void *(**On*Event);
     void *(**On*Listener);
 }
-#xwalk
--keep class org.xwalk.core.** { *; }
--keep class org.crosswalk.engine.** { *; }
--keep class org.chromium.** { *; }
+#xwalk 已移除（Crosswalk EOL，模块已删除）
 -dontwarn android.view.**
 -dontwarn android.media.**
--dontwarn org.chromium.**
 #okhttp
 -dontwarn okhttp3.**
 -keep class okhttp3.**{*;}
