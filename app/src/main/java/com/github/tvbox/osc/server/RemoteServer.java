@@ -140,6 +140,7 @@ public class RemoteServer extends NanoHTTPD {
             if (isProtected(fileName, session.getMethod()) && !ServerToken.lanNoAuth()) {
                 boolean exempt = session.getMethod() == Method.GET && isSelfRequest(session);
                 if (!exempt && !ServerToken.verify(getToken(session))) {
+                    com.github.tvbox.osc.util.LOG.i("auth-denied: " + session.getRemoteIpAddress() + " " + session.getMethod() + " " + session.getUri() + " lanNoAuth=" + ServerToken.lanNoAuth());
                     return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden");
                 }
             }
