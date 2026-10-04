@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/shape_dialog_bg_main"
+        android:orientation="vertical"
+        android:padding="@dimen/vs_30">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="远程控制令牌"
+            android:textColor="@color/color_FFFFFF"
+            android:textSize="@dimen/ts_28" />
+
+        <ImageView
+            android:id="@+id/ivTokenQRCode"
+            android:layout_width="@dimen/vs_240"
+            android:layout_height="@dimen/vs_240"
+            android:layout_gravity="center"
+            android:layout_marginTop="@dimen/vs_20" />
+
+        <TextView
+            android:id="@+id/tvTokenAddress"
+            android:layout_width="@dimen/vs_420"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginTop="@dimen/vs_20"
+            android:gravity="center"
+            android:lineSpacingMultiplier="1.5"
+            android:textAlignment="gravity"
+            android:textColor="@color/color_FFFFFF"
+            android:textSize="@dimen/ts_20"
+            tools:text="http://192.168.1.100:9978/?token=xxxxxxxx" />
+
+        <TextView
+            android:layout_width="@dimen/vs_420"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:text="手机扫码直达远控页（自动登录令牌）\n或点击下方按钮复制完整令牌"
+            android:textColor="@color/color_FFFFFF"
+            android:textSize="@dimen/ts_20" />
+
+        <TextView
+            android:id="@+id/tvTokenCopy"
+            android:layout_width="@dimen/vs_200"
+            android:layout_height="@dimen/vs_50"
+            android:layout_gravity="center"
+            android:layout_marginTop="@dimen/vs_20"
+            android:background="@drawable/shape_setting_model_focus"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="复制令牌"
+            android:textColor="@android:color/white"
+            android:textSize="@dimen/ts_24" />
+    </LinearLayout>
+</FrameLayout>
