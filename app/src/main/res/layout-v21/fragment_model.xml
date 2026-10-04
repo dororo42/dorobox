@@ -132,7 +132,7 @@
                         android:id="@+id/tvServerToken"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="点击复制"
+                        android:text="二维码/复制"
                         android:textColor="@android:color/white"
                         android:textSize="@dimen/ts_24" />
 
