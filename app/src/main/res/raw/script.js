@@ -176,7 +176,11 @@ function listFile(path) {
             askToken(true);
             if (TVBOX_TOKEN) { listFile(path); return; }
         }
-        warnToast('读取本地文件失败，可能没有存储权限');
+        // 区分拒绝原因：403 + "Forbidden path" 是路径越界校验，与令牌无关
+        var msg = (jqXHR && jqXHR.responseText && jqXHR.responseText.indexOf('Forbidden path') >= 0)
+            ? '路径被拒绝：目标在外部存储范围之外'
+            : '读取本地文件失败，可能没有存储权限';
+        warnToast(msg);
         $('#loadingToast').hide();
     });
 }
