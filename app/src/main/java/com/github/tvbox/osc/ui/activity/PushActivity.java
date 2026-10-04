@@ -11,6 +11,7 @@ import android.widget.TextView;
 import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.base.BaseActivity;
 import com.github.tvbox.osc.server.ControlManager;
+import com.github.tvbox.osc.server.ServerToken;
 import com.github.tvbox.osc.ui.tv.QRCodeGen;
 
 import me.jessyan.autosize.utils.AutoSizeUtils;
@@ -57,7 +58,8 @@ public class PushActivity extends BaseActivity {
     }
 
     private void refreshQRCode() {
-        String address = ControlManager.get().getAddress(false);
+        // 二维码附带远程控制令牌：推送走 /action 的受保护动作，无 token 会被 403
+        String address = ControlManager.get().getAddress(false) + "?token=" + ServerToken.get();
         tvAddress.setText(String.format("手机/电脑扫描上方二维码或者直接浏览器访问地址\n%s", address));
         ivQRCode.setImageBitmap(QRCodeGen.generateBitmap(address, AutoSizeUtils.mm2px(this, 300), AutoSizeUtils.mm2px(this, 300), 4));
     }
