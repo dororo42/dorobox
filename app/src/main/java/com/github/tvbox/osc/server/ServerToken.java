@@ -3,6 +3,8 @@ package com.github.tvbox.osc.server;
 import android.text.TextUtils;
 
 import com.github.tvbox.osc.util.HawkConfig;
+
+import java.security.MessageDigest;
 import com.orhanobut.hawk.Hawk;
 
 import java.util.UUID;
@@ -33,7 +35,9 @@ public class ServerToken {
     }
 
     public static boolean verify(String candidate) {
-        return !TextUtils.isEmpty(candidate) && get().equals(candidate);
+        if (TextUtils.isEmpty(candidate)) return false;
+        // m-2/N-1：常量时间比较，杜绝时序侧信道（虽然 128-bit UUID 实际不可穷举，按鉴权惯例实现）
+        return MessageDigest.isEqual(get().getBytes(), candidate.getBytes());
     }
 
     /**

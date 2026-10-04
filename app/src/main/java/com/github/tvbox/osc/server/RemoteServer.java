@@ -89,8 +89,8 @@ public class RemoteServer extends NanoHTTPD {
 
     @Override
     public void start(int timeout, boolean daemon) throws IOException {
-        isStarted = true;
         super.start(timeout, daemon);
+        isStarted = true; // nit：成功后再置位，启动失败不留残留 true
         EventBus.getDefault().post(new ServerEvent(ServerEvent.SERVER_SUCCESS));
     }
 
@@ -128,7 +128,7 @@ public class RemoteServer extends NanoHTTPD {
     }
     @Override
     public Response serve(IHTTPSession session) {
-        EventBus.getDefault().post(new ServerEvent(ServerEvent.SERVER_CONNECTION));
+        // m-4：原每请求 SERVER_CONNECTION 事件唯一订阅者为空方法体，已删除（高频代理场景白耗主线程）
         if (!session.getUri().isEmpty()) {
             String fileName = session.getUri().trim();
             if (fileName.indexOf('?') >= 0) {
@@ -242,6 +242,10 @@ public class RemoteServer extends NanoHTTPD {
                 }
                 try {
                     Map < String, String > params = session.getParms();
+                    // 空参数统一 400（缺 path 时 root+"/"+null 会拼出 "null" 目录，禁止落到文件操作）
+                    if (params.get("path") == null || (fileName.equals("/newFolder") && params.get("name") == null)) {
+                        return NanoHTTPD.newFixedLengthResponse(Response.Status.BAD_REQUEST, NanoHTTPD.MIME_PLAINTEXT, "Bad Request: missing path/name");
+                    }
                     if (fileName.equals("/upload")) {
                         String path = params.get("path");
                         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
@@ -284,7 +288,9 @@ public class RemoteServer extends NanoHTTPD {
                         String path = params.get("path");
                         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
                         File file = new File(root + "/" + path);
-                        if (!isInsideRoot(new File(root), file)) {
+                        // D-1：写/删端点严禁目标==根目录（根豁免仅限 GET /file 列表），
+                        // 否则 path 为空时 recursiveDelete(root) 会删除整个外部存储
+                        if (!isInsideRoot(new File(root), file) || isRoot(file)) {
                             return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden path");
                         }
                         if (file.exists()) {
@@ -295,7 +301,7 @@ public class RemoteServer extends NanoHTTPD {
                         String path = params.get("path");
                         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
                         File file = new File(root + "/" + path);
-                        if (!isInsideRoot(new File(root), file)) {
+                        if (!isInsideRoot(new File(root), file) || isRoot(file)) {
                             return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden path");
                         }
                         if (file.exists()) {
@@ -304,7 +310,8 @@ public class RemoteServer extends NanoHTTPD {
                         return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, NanoHTTPD.MIME_PLAINTEXT, "OK");
                     }
                 } catch (Throwable th) {
-                    return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, NanoHTTPD.MIME_PLAINTEXT, "OK");
+                    // M-4/N-3：文件操作失败不得伪报 "OK"
+                    return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "Error: " + th.getMessage());
                 }
             }
         }
@@ -374,10 +381,21 @@ public class RemoteServer extends NanoHTTPD {
     /** canonical path 包含校验：目标必须位于 root 内部，防 `..` 越界读写删。 */
     private static boolean isInsideRoot(File root, File target) {
         try {
-            // 根目录本身视为合法（网页文件管理列根目录 listFile('') 场景）；`..` 越界仍拒绝
+            // 根目录本身视为合法（网页文件管理列根目录 listFile('') 场景）；`..` 越界仍拒绝。
+            // 注意：此豁免仅供 GET /file 列表使用，写/删端点须另加 isRoot() 拒绝==root（D-1）
             String rootPath = root.getCanonicalPath();
             String targetPath = target.getCanonicalPath();
             return targetPath.equals(rootPath) || targetPath.startsWith(rootPath + File.separator);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /** D-1：写/删端点专用——目标即外部存储根目录时必须拒绝，防 path 为空时递归删除整个存储。 */
+    private static boolean isRoot(File target) {
+        try {
+            return target.getCanonicalPath().equals(
+                    Environment.getExternalStorageDirectory().getCanonicalPath());
         } catch (IOException e) {
             return false;
         }
@@ -466,7 +484,10 @@ public class RemoteServer extends NanoHTTPD {
         if (!destDir.exists()) {
             destDir.mkdirs();
         }
-        ZipFile zip = new ZipFile(zipFilePath);
+        // N-2：ZipFile 用 try-with-resources 关闭（句柄泄漏），并加解压总量上限（zip bomb，有 token 保护、兜底）
+        long totalBytes = 0;
+        final long MAX_UNZIP_BYTES = 512L * 1024 * 1024;
+        try (ZipFile zip = new ZipFile(zipFilePath)) {
         Enumeration < ZipEntry > iter = (Enumeration < ZipEntry > ) zip.entries();
         String destRoot = new File(destDirectory).getCanonicalPath() + File.separator;
         while (iter.hasMoreElements()) {
@@ -478,6 +499,10 @@ public class RemoteServer extends NanoHTTPD {
                 continue;
             }
             if (!entry.isDirectory()) {
+                totalBytes += entry.getSize();
+                if (totalBytes > MAX_UNZIP_BYTES) {
+                    throw new Throwable("unzip exceeds size limit (zip bomb?)");
+                }
                 extractFile(is, filePath);
             } else {
                 File dir = new File(filePath);
@@ -485,6 +510,7 @@ public class RemoteServer extends NanoHTTPD {
                 File flag = new File(dir + "/.tvbox_folder");
                 if (!flag.exists()) flag.createNewFile();
             }
+        }
         }
     }
 

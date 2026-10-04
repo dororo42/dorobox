@@ -56,7 +56,9 @@ public class JsSpider extends Spider {
     }
 
     /** 首个 JS 调用时才排队初始化 VM；单线程 executor 保证 init 先于任何 JS 调用执行。 */
-    private void ensureInit() {
+    private synchronized void ensureInit() {
+        // D-6：check-then-act（inited||initQueued 非原子）在首页加载与搜索并发首调时可双重初始化，
+        // synchronized 收敛；单线程 executor 内的任务不受影响（同一对象锁仅用于本判定）
         if (inited || initQueued) return;
         initQueued = true;
         try {
@@ -265,6 +267,9 @@ public class JsSpider extends Spider {
 
     private void createCtx() {
         ctx = QuickJSContext.create();
+        // D-5：资源上限——劣质/恶意源 JS 可无限吃 native heap 或深层递归爆栈（进程被 LMK 杀）
+        ctx.setMemoryLimit(64 * 1024 * 1024);      // 64MB
+        ctx.setMaxStackSize(1024 * 1024);          // 1MB（drpy 系源递归较深，默认 256KB 偏紧）
         ctx.setModuleLoader(new QuickJSContext.BytecodeModuleLoader() {
             @Override
             public byte[] getModuleBytecode(String moduleName) {

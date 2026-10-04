@@ -367,12 +367,6 @@ public class UserFragment extends BaseLazyFragment implements View.OnClickListen
         }
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void server(ServerEvent event) {
-        if (event.type == ServerEvent.SERVER_CONNECTION) {
-        }
-    }
-
     @Override
     public void onDestroy() {
         super.onDestroy();

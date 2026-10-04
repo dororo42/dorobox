@@ -78,7 +78,8 @@ public class JarLoader {
                             }
                         });
                         initThread.start();
-                        initThread.join();
+                        // N-8：劣质 jar 的 Init.init 死循环不得挂死加载线程
+                        initThread.join(3000);
                         Log.i("JarLoader", "echo-自定义爬虫代码加载成功!");
                         success = true;
                         try {
@@ -107,6 +108,19 @@ public class JarLoader {
         return success;
     }
 
+    /** D-7：zip magic（PK\x03\x04）判定，拦截 200-HTML 错误页与截断文件。 */
+    private static boolean isZipFile(File f) {
+        java.io.FileInputStream in = null;
+        try {
+            in = new java.io.FileInputStream(f);
+            return in.read() == 'P' && in.read() == 'K';
+        } catch (Throwable th) {
+            return false;
+        } finally {
+            if (in != null) try { in.close(); } catch (Throwable ignored) {}
+        }
+    }
+
     private DexClassLoader loadJarInternal(String jar, String md5, String key) {
         if (classLoaders.containsKey(key)){
             Log.i("JarLoader", "echo-loadJarInternal jar缓存: " + key);
@@ -130,9 +144,16 @@ public class JarLoader {
         }
         try {
             Response response = OkGo.<File>get(jar).execute();
+            // D-7：HTTP 错误状态不得写入缓存（404 的 HTML 页面此前会被当 jar 落盘）
+            if (!response.isSuccessful()) {
+                Log.e("JarLoader", "jar download http " + response.code() + ": " + jar);
+                return null;
+            }
             assert response.body() != null;
             InputStream is = response.body().byteStream();
-            OutputStream os = new FileOutputStream(cache);
+            // D-7：先写临时文件，校验通过后 rename——断网/断电不留半截缓存
+            File tmp = new File(cache.getAbsolutePath() + ".tmp");
+            OutputStream os = new FileOutputStream(tmp);
             try {
                 byte[] buffer = new byte[2048];
                 int length;
@@ -147,17 +168,28 @@ public class JarLoader {
                     e.printStackTrace();
                 }
             }
+            // D-7：zip magic（PK\x03\x04）校验——HTML 错误页/截断文件直接淘汰
+            if (!isZipFile(tmp)) {
+                Log.e("JarLoader", "downloaded jar is not a zip: " + jar);
+                tmp.delete();
+                return null;
+            }
             // fail-closed：声明了 md5 但校验不匹配 → 拒绝执行（防中间人替换 jar）
-            if (!md5.isEmpty() && !MD5.getFileMd5(cache).equalsIgnoreCase(md5)) {
+            if (!md5.isEmpty() && !MD5.getFileMd5(tmp).equalsIgnoreCase(md5)) {
                 Log.e("JarLoader", "jar md5 mismatch, refuse to load: " + jar);
-                cache.delete();
+                tmp.delete();
                 return null;
             }
             // fail-closed：严格模式下未声明 md5 的 jar 拒绝执行（可在设置中关闭）
             if (md5.isEmpty() && Hawk.get(HawkConfig.JAR_VERIFY_STRICT, false)) {
                 Log.e("JarLoader", "jar without md5 refused in strict mode: " + jar);
-                cache.delete();
+                tmp.delete();
                 return null;
+            }
+            if (cache.exists()) cache.delete();
+            if (!tmp.renameTo(cache)) {
+                FileUtils.copyFile(tmp, cache);
+                tmp.delete();
             }
             loadClassLoader(cache.getAbsolutePath(), key);
             return classLoaders.get(key);

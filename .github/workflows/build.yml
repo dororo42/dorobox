@@ -29,11 +29,16 @@ jobs:
         run: chmod +x gradlew
 
       # 逐 flavor 编译：python flavor 依赖 buildPython/chaquopy，CI 暂不构建（见 handoff 延后项）
+      # M-5：debug 签名 keystore 经 Secrets 注入（保签名稳定，keystore 不入库）
       - name: Build debug APKs (normal mode, armeabi + arm64)
+        env:
+          BOX_DEBUG_KEYSTORE_B64: ${{ secrets.BOX_DEBUG_KEYSTORE_B64 }}
         run: ./gradlew assembleArmeabiGenericNormalDebug assembleArm64GenericNormalDebug --stacktrace
 
       # release 走 minify + shrinkResources，用于验证 proguard 规则（产物为未签名 APK）
       - name: Build release APK (R8 + shrinkResources validation, unsigned)
+        env:
+          BOX_DEBUG_KEYSTORE_B64: ${{ secrets.BOX_DEBUG_KEYSTORE_B64 }}
         run: ./gradlew assembleArmeabiGenericNormalRelease --stacktrace
 
       - name: Upload APK artifacts

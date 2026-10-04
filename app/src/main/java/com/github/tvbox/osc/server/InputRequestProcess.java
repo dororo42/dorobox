@@ -36,19 +36,44 @@ public class InputRequestProcess implements RequestProcess {
                 if (params.get("do") != null && mDataReceiver != null) {
                     String action = params.get("do");
 
-                    // 配置下发类动作属高危（可劫持配置 URL），须携带有效 token（设置页"局域网免鉴权"开启时豁免）
+                    // 参数校验（M-2）：缺必选参数返回 400 而非 NPE 断连
+                    String missing = null;
+                    switch (action) {
+                        case "search":
+                            if (params.get("word") == null) missing = "word";
+                            break;
+                        case "api":
+                        case "live":
+                        case "epg":
+                        case "proxys":
+                        case "push":
+                            if (params.get("url") == null) missing = "url";
+                            break;
+                        case "mirror":
+                            if (params.get("id") == null) missing = "id";
+                            else if (params.get("sourceKey") == null) missing = "sourceKey";
+                            break;
+                    }
+                    if (missing != null) {
+                        return RemoteServer.createJSONResponse(NanoHTTPD.Response.Status.BAD_REQUEST,
+                                "{\"error\":\"missing param " + missing + "\"}");
+                    }
+
+                    // 高危动作（M-3：mirror 可推送播放内容，与 push 同级，一并纳入）须携带有效 token
+                    //（设置页"局域网免鉴权"开启时豁免）
                     if (!ServerToken.lanNoAuth()) {
                         switch (action) {
                             case "api":
                             case "live":
                             case "epg":
                             case "proxys":
-                            case "push": {
+                            case "push":
+                            case "mirror": {
                                 String token = params.get("token");
                                 if (token == null) token = session.getHeaders().get("x-token");
                                 if (!ServerToken.verify(token)) {
                                     com.github.tvbox.osc.util.LOG.i("auth-denied(action): do=" + action + " lanNoAuth=" + ServerToken.lanNoAuth());
-                                return RemoteServer.createPlainTextResponse(NanoHTTPD.Response.Status.FORBIDDEN, "Forbidden");
+                                    return RemoteServer.createPlainTextResponse(NanoHTTPD.Response.Status.FORBIDDEN, "Forbidden");
                                 }
                                 break;
                             }

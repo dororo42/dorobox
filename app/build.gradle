@@ -11,7 +11,7 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.github.tvbox.osc.tk'
+        applicationId 'com.dorobox.tvbox' // 独立包名：与其他 TVBox 血统应用互不冲突，第三方无法用同包名覆盖安装
         targetSdkVersion 28
         versionCode 1
         versionName "1.0.".concat(buildTime())
@@ -30,11 +30,22 @@ android {
 
     signingConfigs {
         debug {
-            // 固定 debug 签名入库：CI 每次构建签名一致，真机可覆盖安装（否则 runner 临时 keystore 每轮不同）
-            storeFile rootProject.file("debug.keystore")
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+            // M-5：keystore 不再入库。解析顺序：
+            // 1) 环境变量 BOX_DEBUG_KEYSTORE_B64（CI 从 GitHub Secrets 注入，base64）
+            // 2) 本地 rootProject/debug.keystore（已 gitignore，仅开发者本机存在）
+            // 3) 均无 → 使用 AGP 默认 runner 生成签名（签名不一致，仅一次性验证用）
+            def ks = rootProject.file("debug.keystore")
+            def b64 = System.getenv("BOX_DEBUG_KEYSTORE_B64")
+            if (b64 != null && !b64.trim().isEmpty()) {
+                ks.parentFile.mkdirs()
+                ks.setBytes(java.util.Base64.getMimeDecoder().decode(b64.trim()))
+            }
+            if (ks.exists()) {
+                storeFile ks
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
         }
     }
     buildTypes {
@@ -69,7 +80,7 @@ android {
 
         hisense {
             //海信的
-            applicationId 'com.github.hisense.osc.tk'
+            applicationId 'com.dorobox.tvbox.hisense'
             dimension = "brand"
         }
         normal {
