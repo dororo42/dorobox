@@ -19,8 +19,8 @@ class WebController {
     @GetMapping("/api/updateUrl")
     @ResponseBody
     fun play(@QueryParam("url") url: String, @QueryParam("token") token: String?): String {
-        // 推送可劫持播放内容，须携带有效 token
-        if (!ServerToken.verify(token)) {
+        // 推送可劫持播放内容，须携带有效 token（设置页"局域网免鉴权"开启时豁免）
+        if (!ServerToken.lanNoAuth() && !ServerToken.verify(token)) {
             return "forbidden"
         }
         return try {
