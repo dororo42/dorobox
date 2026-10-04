@@ -36,19 +36,21 @@ public class InputRequestProcess implements RequestProcess {
                 if (params.get("do") != null && mDataReceiver != null) {
                     String action = params.get("do");
 
-                    // 配置下发类动作属高危（可劫持配置 URL），须携带有效 token
-                    switch (action) {
-                        case "api":
-                        case "live":
-                        case "epg":
-                        case "proxys":
-                        case "push": {
-                            String token = params.get("token");
-                            if (token == null) token = session.getHeaders().get("x-token");
-                            if (!ServerToken.verify(token)) {
-                                return RemoteServer.createPlainTextResponse(NanoHTTPD.Response.Status.FORBIDDEN, "Forbidden");
+                    // 配置下发类动作属高危（可劫持配置 URL），须携带有效 token（设置页"局域网免鉴权"开启时豁免）
+                    if (!ServerToken.lanNoAuth()) {
+                        switch (action) {
+                            case "api":
+                            case "live":
+                            case "epg":
+                            case "proxys":
+                            case "push": {
+                                String token = params.get("token");
+                                if (token == null) token = session.getHeaders().get("x-token");
+                                if (!ServerToken.verify(token)) {
+                                    return RemoteServer.createPlainTextResponse(NanoHTTPD.Response.Status.FORBIDDEN, "Forbidden");
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
 

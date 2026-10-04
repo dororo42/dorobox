@@ -153,6 +153,22 @@ public class ModelSettingFragment extends BaseLazyFragment {
             }
         });
 
+        // 局域网免鉴权：开启后本地服务跳过 token 校验（默认关闭；开启=恢复无鉴权行为，仅限可信网络）
+        TextView tvLanAuth = findViewById(R.id.tvLanAuth);
+        tvLanAuth.setText(Hawk.get(HawkConfig.LAN_NO_AUTH, false) ? "开启" : "关闭");
+        findViewById(R.id.llLanAuth).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FastClickCheckUtil.check(v);
+                boolean next = !Hawk.get(HawkConfig.LAN_NO_AUTH, false);
+                Hawk.put(HawkConfig.LAN_NO_AUTH, next);
+                ((TextView) findViewById(R.id.tvLanAuth)).setText(next ? "开启" : "关闭");
+                Toast.makeText(mActivity, next
+                        ? "已开启局域网免鉴权：任意设备可读写文件/改配置，仅限可信网络使用"
+                        : "已关闭局域网免鉴权：危险操作需携带令牌", Toast.LENGTH_LONG).show();
+            }
+        });
+
         //takagen99 : Set HomeApi as default
         findViewById(R.id.llHomeApi).requestFocus();
 

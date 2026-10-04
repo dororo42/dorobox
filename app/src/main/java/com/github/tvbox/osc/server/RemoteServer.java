@@ -137,7 +137,7 @@ public class RemoteServer extends NanoHTTPD {
             // 危险接口（文件读写删/DoH）统一鉴权：token 经 ?token= 或 X-Token 头传入。
             // GET 类只读端点对本机自身请求豁免（clan:// 内部拉取走 http://<LAN-IP>:9978/file/...，
             // remote IP 为本机自身）；写/删端点始终要求 token，局域网其它设备不受豁免。
-            if (isProtected(fileName, session.getMethod())) {
+            if (isProtected(fileName, session.getMethod()) && !ServerToken.lanNoAuth()) {
                 boolean exempt = session.getMethod() == Method.GET && isSelfRequest(session);
                 if (!exempt && !ServerToken.verify(getToken(session))) {
                     return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden");
