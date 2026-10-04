@@ -558,26 +558,27 @@ public class HomeActivity extends BaseActivity {
 
                                 @Override
                                 public void right() {
-                                    dataInitOk = true;
-                                    jarInitOk = true;
+                                    // 源地址为空/加载失败时点"取消"：进入设置页配置源，
+                                    // 而非原地循环 initData（空源下表现为反复弹窗甚至退出）
                                     mHandler.post(new Runnable() {
                                         @Override
                                         public void run() {
-                                            initData();
                                             dialog.hide();
+                                            jumpActivity(SettingActivity.class);
                                         }
                                     });
                                 }
 
                                 @Override
                                 public void cancel() {
+                                    // 返回键关闭弹窗：同样进入设置页
                                     dataInitOk = true;
                                     jarInitOk = true;
                                     mHandler.post(new Runnable() {
                                         @Override
                                         public void run() {
-                                            initData();
                                             dialog.hide();
+                                            jumpActivity(SettingActivity.class);
                                         }
                                     });
                                 }
