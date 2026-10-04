@@ -18,7 +18,7 @@
             android:layout_gravity="center"
             android:text="远程控制令牌"
             android:textColor="@color/color_FFFFFF"
-            android:textSize="@dimen/ts_28" />
+            android:textSize="@dimen/ts_26" />
 
         <ImageView
             android:id="@+id/ivTokenQRCode"
