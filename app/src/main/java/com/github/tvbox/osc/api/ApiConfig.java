@@ -359,8 +359,12 @@ public class ApiConfig {
         JsonArray sites = infoJson.has("video") ? infoJson.getAsJsonObject("video").getAsJsonArray("sites") : infoJson.get("sites").getAsJsonArray();
         for (JsonElement opt : sites) {
             JsonObject obj = (JsonObject) opt;
-            SourceBean sb = new SourceBean();
             String siteKey = obj.get("key").getAsString().trim();
+            // FongMi/OK影视 系配置含纯分组占位站点（仅 key/name，无 type/api），跳过否则 NPE 导致整个配置解析失败
+            if (!obj.has("type") || obj.get("type").isJsonNull() || !obj.has("api") || obj.get("api").isJsonNull()) {
+                continue;
+            }
+            SourceBean sb = new SourceBean();
             sb.setKey(siteKey);
             sb.setName(obj.has("name")?obj.get("name").getAsString().trim():siteKey);
             sb.setType(obj.get("type").getAsInt());
