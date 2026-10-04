@@ -47,7 +47,8 @@ public class InputRequestProcess implements RequestProcess {
                                 String token = params.get("token");
                                 if (token == null) token = session.getHeaders().get("x-token");
                                 if (!ServerToken.verify(token)) {
-                                    return RemoteServer.createPlainTextResponse(NanoHTTPD.Response.Status.FORBIDDEN, "Forbidden");
+                                    com.github.tvbox.osc.util.LOG.i("auth-denied(action): do=" + action + " lanNoAuth=" + ServerToken.lanNoAuth());
+                                return RemoteServer.createPlainTextResponse(NanoHTTPD.Response.Status.FORBIDDEN, "Forbidden");
                                 }
                                 break;
                             }
