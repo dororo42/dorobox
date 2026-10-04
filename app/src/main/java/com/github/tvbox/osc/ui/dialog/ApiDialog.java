@@ -244,9 +244,11 @@ public class ApiDialog extends BaseDialog {
 
     private void refreshQRCode() {
         // 二维码附带远程控制令牌：扫码打开的 Web 远控页需 token 才能执行文件/配置操作（本地服务已鉴权）
-        String address = ControlManager.get().getAddress(false) + "?token=" + ServerToken.get();
-        tvAddress.setText(String.format("手机/电脑扫描上方二维码或者直接浏览器访问地址\n%s", address));
-        ivQRCode.setImageBitmap(QRCodeGen.generateBitmap(address, AutoSizeUtils.mm2px(getContext(), 300), AutoSizeUtils.mm2px(getContext(), 300)));
+        // 文案分两行显示（地址/令牌），避免长 URL 换行撑爆固定高度弹窗（底部按钮被裁）
+        String address = ControlManager.get().getAddress(false);
+        String token = ServerToken.get();
+        tvAddress.setText(String.format("手机/电脑扫描上方二维码或访问\n%s?token=%s", address, token));
+        ivQRCode.setImageBitmap(QRCodeGen.generateBitmap(address + "?token=" + token, AutoSizeUtils.mm2px(getContext(), 300), AutoSizeUtils.mm2px(getContext(), 300)));
     }
 
     public void setOnListener(OnListener listener) {
