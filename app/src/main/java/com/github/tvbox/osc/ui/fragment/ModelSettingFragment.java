@@ -28,6 +28,7 @@ import com.github.tvbox.osc.ui.dialog.ApiDialog;
 import com.github.tvbox.osc.ui.dialog.ApiHistoryDialog;
 import com.github.tvbox.osc.ui.dialog.BackupDialog;
 import com.github.tvbox.osc.ui.dialog.HomeIconDialog;
+import com.github.tvbox.osc.ui.dialog.ServerTokenDialog;
 import com.github.tvbox.osc.ui.dialog.MediaSettingDialog;
 import com.github.tvbox.osc.ui.dialog.ResetDialog;
 import com.github.tvbox.osc.ui.dialog.SelectDialog;
@@ -141,18 +142,14 @@ public class ModelSettingFragment extends BaseLazyFragment {
         tvDns.setText(OkGoHelper.dnsHttpsList.get(Hawk.get(HawkConfig.DOH_URL, 0)));
         tvHomeDefaultShow = findViewById(R.id.tvHomeDefaultShow);
         tvHomeDefaultShow.setText(Hawk.get(HawkConfig.HOME_DEFAULT_SHOW, false) ? "开启" : "关闭");
-        // 远程控制令牌：本地服务（推送/文件管理）接口鉴权用，点击复制完整 token
+        // 远程控制令牌：本地服务（推送/文件管理）接口鉴权用，点击弹出二维码（扫码直达远控页）+ 复制
         findViewById(R.id.llServerToken).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 FastClickCheckUtil.check(v);
                 String token = ServerToken.get();
-                android.content.ClipboardManager cm = (android.content.ClipboardManager) mActivity.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
-                if (cm != null) {
-                    cm.setPrimaryClip(android.content.ClipData.newPlainText("token", token));
-                }
                 ((TextView) findViewById(R.id.tvServerToken)).setText(token.substring(0, Math.min(8, token.length())) + "…");
-                Toast.makeText(mActivity, "令牌已复制：" + token, Toast.LENGTH_LONG).show();
+                new ServerTokenDialog(mActivity).show();
             }
         });
 

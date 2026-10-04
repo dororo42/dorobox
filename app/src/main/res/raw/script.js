@@ -1,6 +1,18 @@
 // 远程控制令牌：与盒子端"设置-远程控制令牌"一致；首次使用时输入并保存在本浏览器
 let TVBOX_TOKEN = localStorage.getItem('tvbox_token') || '';
 
+// 支持 ?token= 深链：扫码/带参打开本页时自动登录令牌（盒子端二维码下发此格式）
+(function () {
+    try {
+        var qs = new URLSearchParams(location.search);
+        var t = qs.get('token');
+        if (t && t.trim()) {
+            TVBOX_TOKEN = t.trim();
+            localStorage.setItem('tvbox_token', TVBOX_TOKEN);
+        }
+    } catch (e) { /* 老浏览器无 URLSearchParams，回退手动输入 */ }
+})();
+
 function withToken(kv) {
     kv = kv || {};
     kv['token'] = TVBOX_TOKEN;
