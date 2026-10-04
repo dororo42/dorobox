@@ -1883,7 +1883,8 @@ public class PlayFragment extends BaseLazyFragment {
 
         @Override
         public void onReceivedSslError(WebView webView, SslErrorHandler sslErrorHandler, SslError sslError) {
-            sslErrorHandler.proceed();
+            // D-2：与 PlayActivity 对齐，SSL 错误一律取消，不放行中间人
+            sslErrorHandler.cancel();
         }
 
         @Override

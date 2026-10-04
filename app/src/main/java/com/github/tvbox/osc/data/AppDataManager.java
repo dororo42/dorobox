@@ -25,7 +25,7 @@ public class AppDataManager {
     private static final int DB_FILE_VERSION = 3;
     private static final String DB_NAME = "tvbox";
     private static volatile AppDataManager manager;
-    private static AppDataBase dbInstance;
+    private static volatile AppDataBase dbInstance; // m-6/M-1：volatile，close 后置 null 由 get() 重建
 
     private AppDataManager() {
     }
@@ -106,6 +106,7 @@ public class AppDataManager {
     }
 
     // close+copy 全程放入 DbIo 串行队列，避免与在飞 DB 任务竞态（审查报告第二轮 H-1）
+    // M-1：close 后置 null 由 get() 重建——原实现 close 后实例永久失效，备份后收藏/历史静默全灭
     public static boolean backup(final File path) {
         Boolean result = com.github.tvbox.osc.data.DbIo.run(new java.util.concurrent.Callable<Boolean>() {
             @Override
@@ -113,6 +114,7 @@ public class AppDataManager {
                 if (dbInstance != null && dbInstance.isOpen()) {
                     dbInstance.close();
                 }
+                dbInstance = null; // 下次 get() 重建，后续 DB 操作不再打到已关闭连接
                 File db = App.getInstance().getDatabasePath(dbPath());
                 if (db.exists()) {
                     try {
@@ -129,6 +131,34 @@ public class AppDataManager {
         return result == Boolean.TRUE;
     }
 
+    /** 校验文件是合法 SQLite 库（16 字节头 "SQLite format 3\0"），防损坏备份覆盖原库。 */
+    private static boolean looksLikeSqlite(File f) {
+        java.io.DataInputStream in = null;
+        try {
+            in = new java.io.DataInputStream(new java.io.FileInputStream(f));
+            byte[] head = new byte[16];
+            if (f.length() < 16) return false;
+            in.readFully(head);
+            byte[] magic = "SQLite format 3\u0000".getBytes("UTF-8");
+            for (int i = 0; i < magic.length; i++) if (head[i] != magic[i]) return false;
+            return true;
+        } catch (Throwable th) {
+            return false;
+        } finally {
+            if (in != null) try { in.close(); } catch (Throwable ignored) {}
+        }
+    }
+
+    /** 删除 SQLite 关联 sidecar 文件（旧 journal/wal 与恢复后的库不匹配会导致损坏）。 */
+    private static void deleteSidecars(File db) {
+        String[] suffixes = {"-journal", "-wal", "-shm"};
+        for (String s : suffixes) {
+            File side = new File(db.getAbsolutePath() + s);
+            if (side.exists()) side.delete();
+        }
+    }
+
+    // M-1：restore 原子化——先拷临时文件并校验 SQLite 头，再替换正式库；失败保留原库可回滚
     public static boolean restore(final File path) {
         Boolean result = com.github.tvbox.osc.data.DbIo.run(new java.util.concurrent.Callable<Boolean>() {
             @Override
@@ -136,19 +166,31 @@ public class AppDataManager {
                 if (dbInstance != null && dbInstance.isOpen()) {
                     dbInstance.close();
                 }
+                dbInstance = null;
                 File db = App.getInstance().getDatabasePath(dbPath());
-                if (db.exists()) {
-                    db.delete();
-                }
                 if (!db.getParentFile().exists())
                     db.getParentFile().mkdirs();
+                File tmp = new File(db.getAbsolutePath() + ".restore-tmp");
+                if (tmp.exists()) tmp.delete();
                 try {
-                    FileUtils.copyFile(path, db);
+                    FileUtils.copyFile(path, tmp);
+                    if (!looksLikeSqlite(tmp)) {
+                        tmp.delete();
+                        return false; // 备份文件损坏：原库未动
+                    }
+                    if (db.exists()) db.delete();
+                    deleteSidecars(db);
+                    if (!tmp.renameTo(db)) {
+                        // rename 失败（跨文件系统等）：回退为 copy，但已校验过内容
+                        FileUtils.copyFile(tmp, db);
+                        tmp.delete();
+                    }
+                    return true;
                 } catch (java.io.IOException e) {
                     e.printStackTrace();
-                    return false;
+                    if (tmp.exists()) tmp.delete();
+                    return false; // 原库保留
                 }
-                return true;
             }
         });
         return result == Boolean.TRUE;

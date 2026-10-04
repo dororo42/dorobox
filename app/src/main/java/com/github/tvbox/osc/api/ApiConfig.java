@@ -168,7 +168,8 @@ public class ApiConfig {
         } else if (apiUrl.startsWith("clan")) {
             configUrl = clanToAddress(apiUrl);
         } else if (!apiUrl.startsWith("http")) {
-            configUrl = "http://" + configUrl;
+            // D-3：裸地址分支应拼 apiUrl（configUrl 此时尚为空串，原实现请求 "http://" 必败）
+            configUrl = "http://" + apiUrl;
         } else {
             configUrl = apiUrl;
         }
@@ -771,7 +772,10 @@ public class ApiConfig {
         if ("js".equals(param.get("do"))) {
             return jsLoader.proxyInvoke(param);
         }
-        SourceBean sourceBean = ApiConfig.get().getHomeSourceBean(); 
+        SourceBean sourceBean = ApiConfig.get().getHomeSourceBean();
+        // D-8a：未配置源时 homeSourceBean 为 null，直接 NPE（仅 500 断连无任何信息）
+        if (sourceBean == null)
+            return new Object[]{200, "text/plain", new java.io.ByteArrayInputStream(new byte[0]), 0};
         String apiString = sourceBean.getApi();
         return apiString.contains(".py") ? pyLoader.proxyInvoke(param) : jarLoader.proxyInvoke(param);
     }

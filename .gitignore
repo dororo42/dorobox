@@ -100,3 +100,4 @@ lint/tmp/
 
 *.hprof
 output-metadata.json
+debug.keystore
