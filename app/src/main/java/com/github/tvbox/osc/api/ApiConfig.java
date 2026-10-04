@@ -364,6 +364,10 @@ public class ApiConfig {
             if (!obj.has("type") || obj.get("type").isJsonNull() || !obj.has("api") || obj.get("api").isJsonNull()) {
                 continue;
             }
+            // normal 包无 Python 运行时，py_ 站点必然空转（SpiderNull），剔除避免默认源落到死站导致首页空白
+            if (siteKey.startsWith("py_") && !com.github.tvbox.osc.BuildConfig.FLAVOR.contains("python")) {
+                continue;
+            }
             SourceBean sb = new SourceBean();
             sb.setKey(siteKey);
             sb.setName(obj.has("name")?obj.get("name").getAsString().trim():siteKey);

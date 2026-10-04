@@ -152,6 +152,11 @@ public class FileUtils {
                     rel= cache;
                     if (StringUtils.isEmpty(cache)) {
                         String netStr = get(name);
+                        // HTTP 200 但内容是 HTML 错误页（Cloudflare Pages 回退）：不缓存、置空防喂给 QuickJS
+                        if (!TextUtils.isEmpty(netStr) && netStr.trim().startsWith("<")) {
+                            LOG.e("echo-loadModule HTML rejected: " + name);
+                            netStr = null;
+                        }
                         if (!TextUtils.isEmpty(netStr)) {
                             setCache(604800, MD5.encode(name), netStr);
                         }
@@ -179,6 +184,11 @@ public class FileUtils {
         } catch (Exception e) {
             e.printStackTrace();
             return name;
+        }
+        // 统一出口防御：任何分支取到的 HTML 内容一律拒载（防 QuickJS 解析 '<' 触发 pending exception）
+        if (rel != null && rel.trim().startsWith("<")) {
+            LOG.e("echo-loadModule HTML rejected: " + name);
+            rel = null;
         }
         return rel;
     }
