@@ -95,6 +95,19 @@ public class App extends MultiDexApplication {
         }
         PlayerHelper.init();
 
+        // P-6：redirectglide 库已自带 AppGlideModule（Glide 不允许多个，加自定义模块会 kapt 失败），
+        // 改为运行时按内存分档调 MemoryCategory：高内存设备放大 Glide 内存缓存，低配收敛
+        try {
+            long maxMem = Runtime.getRuntime().maxMemory();
+            if (maxMem >= 3L * 1024 * 1024 * 1024) {
+                Glide.get(this).setMemoryCategory(com.bumptech.glide.MemoryCategory.HIGH);
+            } else if (maxMem < 2L * 1024 * 1024 * 1024) {
+                Glide.get(this).setMemoryCategory(com.bumptech.glide.MemoryCategory.LOW);
+            }
+        } catch (Throwable th) {
+            th.printStackTrace();
+        }
+
         // Delete Cache
         /*File dir = getCacheDir();
         FileUtils.recursiveDelete(dir);
