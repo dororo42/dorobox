@@ -912,8 +912,17 @@ public class LivePlayActivity extends BaseActivity {
 
     //节目播放
     private boolean playChannel(int channelGroupIndex, int liveChannelIndex, boolean changeSource) {
-        if ((channelGroupIndex == currentChannelGroupIndex && liveChannelIndex == currentLiveChannelIndex && !changeSource)
-                || (changeSource && currentLiveChannelItem.getSourceNum() == 1)) {
+        // 越界/NPE 防护：退出直播后 mHandler 残留的延迟换源消息仍会进入本方法，
+        // 此时频道列表可能已清空或索引被重置为 -1（实测 ArrayIndexOutOfBoundsException: index=-1）
+        if (channelGroupIndex < 0 || liveChannelIndex < 0
+                || channelGroupIndex >= liveChannelGroupList.size()
+                || getLiveChannels(channelGroupIndex).isEmpty()
+                || liveChannelIndex >= getLiveChannels(channelGroupIndex).size()) {
+            return false;
+        }
+        if (currentLiveChannelItem != null
+                && (channelGroupIndex == currentChannelGroupIndex && liveChannelIndex == currentLiveChannelIndex && !changeSource)
+                || (changeSource && currentLiveChannelItem != null && currentLiveChannelItem.getSourceNum() == 1)) {
             showChannelInfo();
             return true;
         }
