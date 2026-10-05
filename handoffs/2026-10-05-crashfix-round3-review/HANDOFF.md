@@ -1,11 +1,11 @@
-# Handoff: dorobox 第 3 轮独立审查修复 —— 真机"设置源→加载成功→闪退"根因 + 31 项修复（真机回归通过，未 commit）
+# Handoff: dorobox 第 3 轮独立审查修复 —— 真机"设置源→加载成功→闪退"根因 + 31 项修复（已提交已推送，CI 绿）
 
 ## 元数据
 
-- Created: 2026-10-05（深夜会话）；同日真机回归完成
+- Created: 2026-10-05（深夜会话）；同日真机回归完成；经用户确认提交并推送
 - Source agent: ZCode（GLM-5.3-Flash）
 - Project: /home/doro/Box，远程 origin = dororo42/dorobox
-- Baseline: main @ b35163e61（修复全部为工作区未提交改动，`git status` 可见 18 个文件改动 + ShellUtils 删除）
+- **状态：3 个 commit 已在 origin/main（`6b48ed195` 闪退/稳定性批 + `02511408c` server 安全批 + `8659043fc` docs），CI run 37255547660 = success，产物 artifact `apk`（覆盖安装用）。设备 192.168.2.230 已在运行同代修复包（本地构建签名一致）。**
 - 审查输出：`/home/doro/reports/dorobox-independent-review-2026-10-05.md`（第 3 轮，含发现/复核/修复清单 + **真机回归结果表**）
 
 ## 用户报告 bug 的根因结论（真机已验证修复）
