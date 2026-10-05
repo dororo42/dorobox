@@ -767,12 +767,15 @@ public class SearchActivity extends BaseActivity {
         }
 
         for (String key : siteKey) {
-            sourceViewModel.execute(new Runnable() {
+            final String siteKeyFinal = key;
+            boolean accepted = sourceViewModel.execute(new Runnable() {
                 @Override
                 public void run() {
-                    sourceViewModel.getSearch(key, searchTitle);
+                    sourceViewModel.getSearch(siteKeyFinal, searchTitle);
                 }
             });
+            // P-3：任务被有界队列丢弃时回滚计数，否则搜索 loading 永久卡住
+            if (!accepted) allRunCount.decrementAndGet();
         }
     }
 

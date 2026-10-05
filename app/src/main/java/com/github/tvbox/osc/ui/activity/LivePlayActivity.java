@@ -538,7 +538,10 @@ public class LivePlayActivity extends BaseActivity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
+        // P-2：tv_sys_timeRunnable/mUpdateTimeRun/mUpdateNetSpeedRun 三个每秒自重投的内部类
+        // Runnable 隐含持有本 Activity；非返回键路径（finish()/异常路径）不走 onBackPressed 的
+        // removeCallbacks，消息队列会永久持有已销毁 Activity——统一在此清空全部消息
+        mHandler.removeCallbacksAndMessages(null);
         // 与 init 里的 register 配对；缺 unregister 时销毁后仍收 TYPE_LIVEPLAY_UPDATE
         // 刷新已死界面，每进一次直播泄漏一个 Activity
         EventBus.getDefault().unregister(this);
@@ -546,6 +549,7 @@ public class LivePlayActivity extends BaseActivity {
             mVideoView.release();
             mVideoView = null;
         }
+        super.onDestroy();
     }
 
     private void showChannelList() {
