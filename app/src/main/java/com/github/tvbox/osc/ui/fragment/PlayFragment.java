@@ -249,10 +249,12 @@ public class PlayFragment extends BaseLazyFragment {
                     e.printStackTrace();
                 }
                 long skip = st * 1000L;
-                if (CacheManager.getCache(MD5.string2MD5(url)) == null) {
+                // 单次读取（原实现连读两次，主线程经 DbIo 各一次有界等待，且两读间条目可被删致 (long)null NPE）
+                Object cached = CacheManager.getCache(MD5.string2MD5(url));
+                if (cached == null) {
                     return skip;
                 }
-                long rec = (long) CacheManager.getCache(MD5.string2MD5(url));
+                long rec = (long) cached;
                 if (rec < skip)
                     return skip;
                 return rec;
@@ -613,8 +615,11 @@ public class PlayFragment extends BaseLazyFragment {
     }
 
     void setTip(String msg, boolean loading, boolean err) {
-        if (!isAdded()) return;
-        requireActivity().runOnUiThread(new Runnable() { //影魔
+        // Thunder 回调在线程池线程：isAdded() 与 requireActivity() 之间可 detach，
+        // requireActivity() 抛 IllegalStateException——用 getActivity() 判空代替
+        android.app.Activity activity = getActivity();
+        if (activity == null) return;
+        activity.runOnUiThread(new Runnable() { //影魔
             @Override
             public void run() {
                 mPlayLoadTip.setText(msg);
@@ -789,9 +794,11 @@ public class PlayFragment extends BaseLazyFragment {
     }
 
     void startPlayUrl(String url, HashMap<String, String> headers) {
-        if (!isAdded()) return;
+        // 同 setTip：Thunder 回调线程的 isAdded/requireActivity TOCTOU 窗口
+        android.app.Activity activity = getActivity();
+        if (activity == null) return;
         final String finalUrl = url;
-        requireActivity().runOnUiThread(new Runnable() {
+        activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 stopParse();
@@ -1017,6 +1024,10 @@ public class PlayFragment extends BaseLazyFragment {
                     if (parse || jx) {
                         boolean userJxList = (playUrl.isEmpty() && ApiConfig.get().getVipParseFlags().contains(flag)) || jx;
                         initParse(flag, userJxList, playUrl, url);
+                    } else if ((playUrl + url).trim().isEmpty()) {
+                        // 坏源 parse=0 且 url 为空：原实现 setUrl("") 停在 STATE_IDLE——
+                        // 黑屏、无提示、无重试，且已创建的播放器实例泄漏
+                        errorWithRetry("播放地址为空", false);
                     } else {
                         mController.showParse(false);
                         playUrl(playUrl + url, headers);
@@ -1197,6 +1208,8 @@ public class PlayFragment extends BaseLazyFragment {
             }
             return;
         }
+        // playGroupCount 可能为 0（旧记录/未初始化）：直接除零 ArithmeticException
+        if (mVodInfo.playGroupCount <= 0) mVodInfo.playGroupCount = mVodInfo.seriesMap.get(mVodInfo.playFlag).size();
         mVodInfo.playIndex++;
         mVodInfo.playGroup += mVodInfo.playIndex / mVodInfo.playGroupCount;
         mVodInfo.playIndex = mVodInfo.playIndex %  mVodInfo.playGroupCount;
@@ -1220,6 +1233,10 @@ public class PlayFragment extends BaseLazyFragment {
         }
         if(mVodInfo.playIndex == 0){
             mVodInfo.playGroup--;
+            // playGroupCount 可能为 0（旧记录）：得 -1 后 play() 里 .get(-1) 越界
+            if (mVodInfo.playGroupCount <= 0) {
+                mVodInfo.playGroupCount = mVodInfo.seriesMap.get(mVodInfo.playFlag).size();
+            }
             mVodInfo.playIndex = mVodInfo.playGroupCount - 1;
         }else{
             mVodInfo.playIndex--;
@@ -1230,13 +1247,15 @@ public class PlayFragment extends BaseLazyFragment {
     private int autoRetryCount = 0;
 
     boolean autoRetry() {
-        switchPlayer();
         if (loadFoundVideoUrls != null && loadFoundVideoUrls.size() > 0) {
             autoRetryFromLoadFoundVideoUrls();
             return true;
         }
         if (autoRetryCount < 1) {
             autoRetryCount++;
+            // 仅在确认要换内核重试时才 switchPlayer：原实现放首行，任何一次播放错误
+            // （含嗅探列表重试与最终放弃）都会翻转 IJK↔EXO 并写回 playerCfg 持久化
+            switchPlayer();
             play(false);
             return true;
         } else {
@@ -1282,6 +1301,18 @@ public class PlayFragment extends BaseLazyFragment {
     }
     public void play(boolean reset) {
     	if (mVodInfo == null) return;
+        List<VodInfo.VodSeries> series = mVodInfo.seriesMap.get(mVodInfo.playFlag);
+        if (series == null || series.isEmpty()) return;
+        // 旧版本历史记录 playGroupCount 反序列化为 0：getplayIndex() 恒为 playIndex，
+        // playNext/playPrevious 亦会除零——按当前剧集数推导并夹取越界索引
+        if (mVodInfo.playGroupCount <= 0) mVodInfo.playGroupCount = series.size();
+        if (mVodInfo.getplayIndex() >= series.size()) {
+            mVodInfo.playGroup = (series.size() - 1) / mVodInfo.playGroupCount;
+            mVodInfo.playIndex = (series.size() - 1) % mVodInfo.playGroupCount;
+        } else if (mVodInfo.getplayIndex() < 0) {
+            mVodInfo.playGroup = 0;
+            mVodInfo.playIndex = 0;
+        }
         VodInfo.VodSeries vs = mVodInfo.seriesMap.get(mVodInfo.playFlag).get(mVodInfo.getplayIndex());
         EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_REFRESH, mVodInfo.getplayIndex()));
         EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_REFRESH_NOTIFY, mVodInfo.name + "&&" + vs.name));

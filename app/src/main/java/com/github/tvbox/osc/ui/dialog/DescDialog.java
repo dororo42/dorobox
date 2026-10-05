@@ -1,20 +1,18 @@
 package com.github.tvbox.osc.ui.dialog;
 
 import android.content.Context;
-import android.content.DialogInterface;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import com.github.tvbox.osc.R;
-import org.greenrobot.eventbus.EventBus;
 import org.jetbrains.annotations.NotNull;
 
-public class DescDialog extends BaseDialog {    
+public class DescDialog extends BaseDialog {
 
     public DescDialog(@NonNull @NotNull Context context) {
-        super(context);       
+        super(context);
         setContentView(R.layout.dialog_desc);
     }
-    
+
     public void setDescribe(String describe) {
     	TextView tvDescribe = findViewById(R.id.describe);
         tvDescribe.setText(describe);
@@ -22,13 +20,7 @@ public class DescDialog extends BaseDialog {
         tvDescribe.requestFocusFromTouch();
     }
 
-    private void init(Context context) {
-        EventBus.getDefault().register(this);
-        setOnDismissListener(new DialogInterface.OnDismissListener() {
-            @Override
-            public void onDismiss(DialogInterface dialog) {
-                EventBus.getDefault().unregister(this);
-            }
-        });
-    }
+    // 原 private init() 内含 EventBus.register(this)，但本类无任何 @Subscribe 方法且从未被调用：
+    // register 对无订阅方法的类会抛 EventBusException（同 UserFragment 启动崩溃 3425cf086），
+    // 属一接线即崩的死代码，直接移除
 }

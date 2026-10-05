@@ -10,6 +10,7 @@ import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.chad.library.adapter.base.BaseViewHolder;
 import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.api.ApiConfig;
+import com.github.tvbox.osc.bean.SourceBean;
 import com.github.tvbox.osc.bean.VodInfo;
 import com.github.tvbox.osc.util.DefaultConfig;
 import com.github.tvbox.osc.util.HawkConfig;
@@ -38,7 +39,10 @@ public class HistoryAdapter extends BaseQuickAdapter<VodInfo, BaseViewHolder> {
         }
 
         TextView tvYear = helper.getView(R.id.tvYear);
-        tvYear.setText(ApiConfig.get().getSource(item.sourceKey).getName());
+        // 历史记录里的 sourceKey 可能来自已被更换/删除的配置源，getSource 返回 null，
+        // 直接 .getName() 打开历史页必崩——回退显示 sourceKey 本身
+        SourceBean sourceBean = ApiConfig.get().getSource(item.sourceKey);
+        tvYear.setText(sourceBean != null ? sourceBean.getName() : item.sourceKey);
         /*if (item.year <= 0) {
             tvYear.setVisibility(View.GONE);
         } else {

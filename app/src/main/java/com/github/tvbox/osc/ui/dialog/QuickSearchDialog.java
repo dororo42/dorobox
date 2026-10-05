@@ -57,7 +57,9 @@ public class QuickSearchDialog extends BaseDialog {
         setOnDismissListener(new DialogInterface.OnDismissListener() {
             @Override
             public void onDismiss(DialogInterface dialog) {
-                EventBus.getDefault().unregister(this);
+                // 此处 this 是匿名 OnDismissListener 而非 dialog：EventBus 对未注册对象
+                // 仅告警不抛异常，原写法每次都漏注销、泄漏持有 DetailActivity 的 dialog
+                EventBus.getDefault().unregister(QuickSearchDialog.this);
             }
         });
         mGridView = findViewById(R.id.mGridView);

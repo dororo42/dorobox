@@ -3,6 +3,8 @@ package com.github.tvbox.osc.api;
 import static com.github.tvbox.osc.util.RegexUtils.getPattern;
 import android.app.Activity;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Base64;
 
@@ -240,24 +242,44 @@ public class ApiConfig {
         String jarUrl = urls[0];
         String md5 = urls.length > 1 ? urls[1].trim() : "";
         File cache = new File(App.getInstance().getFilesDir().getAbsolutePath() + "/csp/"+MD5.string2MD5(jarUrl)+".jar");
-        if (!md5.isEmpty() || useCache) {
-            if (cache.exists() && (useCache || MD5.getFileMd5(cache).equalsIgnoreCase(md5))) {
-                if (jarLoader.load(cache.getAbsolutePath())) {
-                    callback.success();
-                } else {
-                    callback.error("从缓存加载jar失败");
+        // jarLoader.load = DexClassLoader + Init.init(join 3s) + MD5 全文件哈希，全是重 IO，
+        // 且 OkGo onSuccess 在主线程回调、缓存命中路径直接同步执行——劣质 jar 必然主线程
+        // 卡满 3 秒触发 ANR。整体挪到工作线程，callback 仍回主线程
+        new Thread(() -> {
+            try {
+                boolean cacheOk = false;
+                if (cache.exists()) {
+                    if (useCache) {
+                        cacheOk = true;
+                    } else if (!md5.isEmpty()) {
+                        cacheOk = MD5.getFileMd5(cache).equalsIgnoreCase(md5);
+                    } else {
+                        cacheOk = Boolean.parseBoolean(jarCache) && !FileUtils.isWeekAgo(cache);
+                    }
                 }
-                return;
-            }
-        }else {
-            if (Boolean.parseBoolean(jarCache) && cache.exists() && !FileUtils.isWeekAgo(cache)) {
-                if (jarLoader.load(cache.getAbsolutePath())) {
-                    callback.success();
+                if (cacheOk && jarLoader.load(cache.getAbsolutePath())) {
+                    postJarCallback(callback, true, null);
                     return;
                 }
+                // 缓存损坏（坏响应落盘/md5 不符）：删除后走网络重新下载，
+                // 而非回调 error 后永久卡在坏缓存上
+                if (cacheOk) cache.delete();
+                downloadJar(jarUrl, cache, callback);
+            } catch (Throwable th) {
+                th.printStackTrace();
+                postJarCallback(callback, false, "从缓存加载jar失败：" + th.getMessage());
             }
-        }
+        }, "jar-load").start();
+    }
 
+    private void postJarCallback(final LoadConfigCallback callback, final boolean ok, final String errMsg) {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (ok) callback.success();
+            else callback.error(errMsg != null ? errMsg : "从缓存加载jar失败");
+        });
+    }
+
+    private void downloadJar(String jarUrl, File cache, LoadConfigCallback callback) {
         boolean isJarInImg = jarUrl.startsWith("img+");
         jarUrl = jarUrl.replace("img+", "");
         OkGo.<File>get(jarUrl)
@@ -267,20 +289,27 @@ public class ApiConfig {
 
                     @Override
                     public File convertResponse(okhttp3.Response response){
+                        // 非 2xx 不落盘（此前任何响应体都会覆盖缓存）
+                        if (!response.isSuccessful()) {
+                            LOG.e("echo---jar HTTP " + response.code() + "，不落盘");
+                            return null;
+                        }
                         File cacheDir = cache.getParentFile();
                         assert cacheDir != null;
                         if (!cacheDir.exists()) cacheDir.mkdirs();
-                        if (cache.exists()) cache.delete();
-                        // 3. 使用 try-with-resources 确保流关闭
                         assert response.body() != null;
-                        try (FileOutputStream fos = new FileOutputStream(cache)) {
+                        // 原子写对齐 JarLoader/JsLoader（D-7）：tmp → ZIP magic('PK') 校验 → rename，
+                        // 防止截断响应 / CDN 错误页把好缓存覆盖成坏缓存
+                        File tmp = new File(cacheDir, cache.getName() + ".tmp");
+                        try (FileOutputStream fos = new FileOutputStream(tmp)) {
                             if (isJarInImg) {
                                 String respData = response.body().string();
                                 LOG.i("echo---jar Response: " + respData);
                                 byte[] imgJar = getImgJar(respData);
                                 if (imgJar == null || imgJar.length == 0) {
                                     LOG.e("echo---Generated JAR data is empty");
-                                    callback.error("JAR data is empty");
+                                    tmp.delete();
+                                    return null;
                                 }
                                 fos.write(imgJar);
                             } else {
@@ -294,7 +323,29 @@ public class ApiConfig {
                             }
                             fos.flush();
                         } catch (IOException e) {
+                            tmp.delete();
                             return null;
+                        }
+                        try (FileInputStream magicIn = new FileInputStream(tmp)) {
+                            byte[] head = new byte[2];
+                            if (magicIn.read(head) != 2 || head[0] != 'P' || head[1] != 'K') {
+                                LOG.e("echo---jar 响应非 ZIP(jar/dex) 内容，丢弃");
+                                tmp.delete();
+                                return null;
+                            }
+                        } catch (IOException e) {
+                            tmp.delete();
+                            return null;
+                        }
+                        if (cache.exists()) cache.delete();
+                        if (!tmp.renameTo(cache)) {
+                            try {
+                                FileUtils.copyFile(tmp, cache);
+                                tmp.delete();
+                            } catch (IOException e) {
+                                tmp.delete();
+                                return null;
+                            }
                         }
                         return cache;
                     }
@@ -303,17 +354,25 @@ public class ApiConfig {
                     public void onSuccess(Response<File> response) {
                         File file = response.body();
                         if (file != null && file.exists()) {
-                            try {
-                                if (jarLoader.load(file.getAbsolutePath())) {
-                                    callback.success();
-                                } else {
-                                    LOG.e("echo---jar Loader returned false");
-                                    callback.error("从网络上加载jar写入缓存后加载失败");
+                            // jarLoader.load 是重 IO（DexClassLoader + Init.init），不在主线程执行
+                            new Thread(() -> {
+                                boolean ok;
+                                try {
+                                    ok = jarLoader.load(file.getAbsolutePath());
+                                } catch (Throwable th) {
+                                    LOG.e("echo---jar Loader threw exception: " + th.getMessage());
+                                    ok = false;
                                 }
-                            } catch (Exception e) {
-                                LOG.e("echo---jar Loader threw exception: " + e.getMessage());
-                                callback.error("JAR加载异常: " + e.getMessage());
-                            }
+                                final boolean fok = ok;
+                                new Handler(Looper.getMainLooper()).post(() -> {
+                                    if (fok) {
+                                        callback.success();
+                                    } else {
+                                        LOG.e("echo---jar Loader returned false");
+                                        callback.error("从网络上加载jar写入缓存后加载失败");
+                                    }
+                                });
+                            }, "jar-load").start();
                         } else {
                             LOG.e("echo---jar File not found");
                             callback.error("从网络上加载jar地址字节数据为空");
@@ -326,7 +385,10 @@ public class ApiConfig {
                         if (ex != null) {
                             LOG.i("echo---jar Request failed: " + ex.getMessage());
                         }
-                        if(cache.exists())jarLoader.load(cache.getAbsolutePath());
+                        // 下载失败：旧缓存若存在仍是可用版本，回退加载（不影响 error 上报）
+                        if (cache.exists()) {
+                            new Thread(() -> jarLoader.load(cache.getAbsolutePath()), "jar-load-fallback").start();
+                        }
                         callback.error(ex != null ? "从网络上加载jar失败：" + ex.getMessage() : "未知网络错误");
                     }
                 });
@@ -356,10 +418,21 @@ public class ApiConfig {
         // 直播播放请求头
         livePlayHeaders = infoJson.getAsJsonArray("livePlayHeaders");
         // 远端站点源
+        // 换配置时清空旧站点表，否则旧配置站点永久残留（源列表混入死站、isEmpty 判断失真、搜索打死源）
+        sourceBeanList.clear();
         SourceBean firstSite = null;
-        JsonArray sites = infoJson.has("video") ? infoJson.getAsJsonObject("video").getAsJsonArray("sites") : infoJson.get("sites").getAsJsonArray();
+        JsonArray sites = null;
+        if (infoJson.has("video") && infoJson.getAsJsonObject("video").has("sites"))
+            sites = infoJson.getAsJsonObject("video").getAsJsonArray("sites");
+        else if (infoJson.has("sites"))
+            sites = infoJson.getAsJsonArray("sites");
+        if (sites == null)
+            throw new IllegalStateException("配置中没有 sites 站点表");
         for (JsonElement opt : sites) {
             JsonObject obj = (JsonObject) opt;
+            // key 缺失/null 的站点同样跳过：原实现先 getAsString 再判 type/api，缺 key 会炸掉整份配置
+            if (!obj.has("key") || obj.get("key").isJsonNull())
+                continue;
             String siteKey = obj.get("key").getAsString().trim();
             // FongMi/OK影视 系配置含纯分组占位站点（仅 key/name，无 type/api），跳过否则 NPE 导致整个配置解析失败
             if (!obj.has("type") || obj.get("type").isJsonNull() || !obj.has("api") || obj.get("api").isJsonNull()) {
@@ -393,11 +466,13 @@ public class ApiConfig {
                 firstSite = sb;
             sourceBeanList.put(siteKey, sb);
         }
-        if (sourceBeanList != null && sourceBeanList.size() > 0) {
+        if (sourceBeanList.size() > 0) {
             String home = Hawk.get(HawkConfig.HOME_API, "");
             SourceBean sh = getSource(home);
             if (sh == null || sh.getHide() == 1)
-                setSourceBean(firstSite);
+                // 全部站点 hide=1 时 firstSite 为 null：保持空源走“无可用站点”提示，
+                // 原 setSourceBean(null) 会在 getKey() 处 NPE 并被吞成“解析配置失败”死循环
+                setSourceBean(firstSite != null ? firstSite : new SourceBean());
             else
                 setSourceBean(sh);
         }
