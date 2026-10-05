@@ -4,8 +4,8 @@ takagen99/Box 的本地开发副本（TVBox 血统安卓应用，Java，minSdk 2
 
 ## Current Handoff
 
-- Latest: `handoffs/2026-10-05-review-fixes-dorobox/HANDOFF.md`
-- Branch: main @ 3425cf086（已推送至 `dororo42/dorobox`）
-- Status: 两份独立审查报告（2026-10-04/05）的 5×Major + D/m/nit 系 20+ 项已全部修复（`8436f488`）+ 两个二次回归修复（`3425cf086`）；包名改 com.dorobox.tvbox；keystore 移出仓库走 Secret。CI 全绿。真机已关机，**设备上的 com.dorobox.tvbox 落后一个修复版（含启动崩溃），开机后先覆盖安装 37214729271 的包**（详见 handoff）
+- Latest: `handoffs/2026-10-05-crashfix-round3-review/HANDOFF.md`
+- Branch: main @ b35163e61（**本轮 31 项修复在工作区未 commit**，真机回归已通过，等用户拍板提交）
+- Status: 第 3 轮独立审查（报告 `/home/doro/reports/dorobox-independent-review-2026-10-05.md`）+ 真机回归完成：闪退根因 = 旧包 EventBus + `HomeActivity.onDestroy appExit(0)` 进程自杀，均已修并实证（设置源后 PID 不变）；另发现并缓解 QuickJS 预编译 wrapper 段错误（D-5 潜伏雷，搜索 10/10 轮零崩溃）、script.js XSS、restore 回滚、body token 403 回归等 31 项。设备 192.168.2.230 已恢复原配置运行新包。
 
 任何 agent 开始工作前，先读上面的 HANDOFF.md。这份指针由 agent-handoff 维护，手工交接时请同步更新。
