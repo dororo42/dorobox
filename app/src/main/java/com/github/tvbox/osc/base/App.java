@@ -100,9 +100,9 @@ public class App extends MultiDexApplication {
         try {
             long maxMem = Runtime.getRuntime().maxMemory();
             if (maxMem >= 3L * 1024 * 1024 * 1024) {
-                Glide.get(this).setMemoryCategory(com.bumptech.glide.MemoryCategory.HIGH);
+                com.bumptech.glide.Glide.get(this).setMemoryCategory(com.bumptech.glide.MemoryCategory.HIGH);
             } else if (maxMem < 2L * 1024 * 1024 * 1024) {
-                Glide.get(this).setMemoryCategory(com.bumptech.glide.MemoryCategory.LOW);
+                com.bumptech.glide.Glide.get(this).setMemoryCategory(com.bumptech.glide.MemoryCategory.LOW);
             }
         } catch (Throwable th) {
             th.printStackTrace();
