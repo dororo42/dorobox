@@ -25,7 +25,16 @@
 - P-12 单元测试（零 test 源集）、lint 门禁（NewApi/StaticFieldLeak/HandlerLeak 设 error）、性能基线度量（gfxinfo/atrace）——工程化项，待排期
 - P-3 的 OkGo 统一取消路径、P-5 长期双线程 executor + WAL——评估后再做
 
+## 真机回归（2026-10-05，已通过）
+
+- 机型 p230 / Android 7.1.2 / arm64，包 com.dorobox.tvbox @ bd8932bed
+- 启动 0 FATAL（EventBus 回归确认已灭）；LeakCanary 生效报 0 泄漏
+- P-1 清缓存：0 ANR / 0 跳帧，首页正常重载
+- P-2 直播进出 3+ 轮：Activities 稳定 3-4 不累积，0 SIGABRT
+- **真机新捕获存量崩溃并已修**（`4958d6b1a`）：BACK 退出直播后 mHandler 残留延迟换源消息以 index=-1 进 playChannel → ArrayIndexOutOfBoundsException（即用户所报"进搜索就退出"的另一真路径）。已加越界/null 防护，复现路径回归 0 崩溃
+- 播放验证：东方卫视 4K 1080p 直播正常播放，EPG 时间条走动
+
 ## 待办
 
-- 真机（关机中）回归：装 bd8932bed 包 → 验证启动/清缓存无 ANR/反复进出直播内存不涨/搜索有终态
-- 第 3 轮报告遗留：com.dorobox.tvbox 若数据为空需重配源
+- 真机搜索全流程（30+ 源终态）仍建议人工点一次确认 P-3 体感
+- 第 3 轮报告遗留：com.dorobox.tvbox 配置已保留（clun.top/box.json + SOCKS + 免鉴权开）
