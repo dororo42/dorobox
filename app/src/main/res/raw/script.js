@@ -68,7 +68,7 @@ function doAction(action, kv) {
 }
 
 function tpl_top(path) {
-    return `<a class="weui-cell  weui-cell_access" href="javascript:void(0)" onclick="listFile('` + path + `')">
+    return `<a class="weui-cell  weui-cell_access" href="javascript:void(0)" onclick="listFile('` + escJsAttr(path) + `')">
     <div class="weui-cell__hd"><img src="`+ ic_dir + `" alt="" style="width: 32px; margin-right: 16px; display: block;"></div>
     <span class="weui-cell__bd">
         <span>..</span>
@@ -79,11 +79,11 @@ function tpl_top(path) {
 }
 
 function tpl_dir(name, time, path) {
-    return `<a class="weui-cell  weui-cell_access" href="#" onclick="listFile('` + path + `')">
+    return `<a class="weui-cell  weui-cell_access" href="#" onclick="listFile('` + escJsAttr(path) + `')">
     <div class="weui-cell__hd"><img src="`+ ic_dir + `" alt="" style="width: 32px; margin-right: 16px; display: block;"></div>
     <span class="weui-cell__bd">
-    <span>`+ name + `</span>
-        <div class="weui-cell__desc">`+ time + `</div>
+    <span>`+ escHtml(name) + `</span>
+        <div class="weui-cell__desc">`+ escHtml(time) + `</div>
     </span>
     <span class="weui-cell__ft">
     </span>
@@ -91,13 +91,31 @@ function tpl_dir(name, time, path) {
 }
 
 function tpl_file(name, time, path, canDel) {
-    return `<a class="weui-cell  weui-cell_access" href="javascript:void(0)" onclick="selectFile('` + path + `', ` + canDel + `)">
+    return `<a class="weui-cell  weui-cell_access" href="javascript:void(0)" onclick="selectFile('` + escJsAttr(path) + `', ` + canDel + `)">
     <div class="weui-cell__hd"><img src="`+ ic_file + `" alt="" style="width: 32px; margin-right: 16px; display: block;"></div>
     <span class="weui-cell__bd">
-        <span>`+ name + `</span>
-        <div class="weui-cell__desc">`+ time + `</div>
+        <span>`+ escHtml(name) + `</span>
+        <div class="weui-cell__desc">`+ escHtml(time) + `</div>
     </span>
     </a>`;
+}
+
+// HTML 文本/属性转义：设备上任何持有存储权限的 App 都能创建带 <>&'" 的文件/目录名，
+// 未转义直接拼进 innerHTML 会构成存储型 XSS（可窃取 localStorage 中的远程控制 token）
+function escHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+// 进入 onclick 单引号 JS 字符串的路径专用：必须双层转义——
+// 浏览器先解码 HTML 实体再执行 onclick JS，只做 HTML 转义挡不住 `'` 逃逸 JS 字符串
+function escJsAttr(s) {
+    return escHtml(String(s == null ? '' : s)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'"));
 }
 
 function clear_list() {
@@ -257,23 +275,7 @@ function doNewFolder(yes) {
 
 
 function delFolder() {
-    $('#delFolderContent').html('是否删除 ' + current_root);
-    $('#delFolder').show();
-}
-
-function doDelFolder(yes) {
-    $('#delFolder').hide();
-    if (yes == 1) {
-        $('#loadingToast').show();
-        $.post('/delFolder', withToken({ path: current_root }), function (data) {
-            $('#loadingToast').hide();
-            listFile(current_parent);
-        });
-    }
-}
-
-function delFolder() {
-    $('#delFolderContent').html('是否删除 ' + current_root);
+    $('#delFolderContent').html('是否删除 ' + escHtml(current_root));
     $('#delFolder').show();
 }
 
@@ -290,7 +292,7 @@ function doDelFolder(yes) {
 
 function delFile() {
     hideFileInfo();
-    $('#delFileContent').html('是否删除 ' + current_file);
+    $('#delFileContent').html('是否删除 ' + escHtml(current_file));
     $('#delFile').show();
 }
 

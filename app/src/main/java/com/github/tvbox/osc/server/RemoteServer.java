@@ -134,13 +134,41 @@ public class RemoteServer extends NanoHTTPD {
             if (fileName.indexOf('?') >= 0) {
                 fileName = fileName.substring(0, fileName.indexOf('?'));
             }
-            // 危险接口（文件读写删/DoH）统一鉴权：token 经 ?token= 或 X-Token 头传入。
+            // POST 必须先 parseBody 再鉴权：NanoHTTPD 只在 parseBody 时才把 body/urlencoded
+            // 字段合入 parms，此前写端点的 token 若放 body（script.js 正是如此），
+            // 鉴权门永远读不到 → 默认配置下全部写操作 403 且页面无提示
+            Map < String, String > files = new HashMap < String, String > ();
+            if (session.getMethod() == Method.POST) {
+                try {
+                    if (session.getHeaders().containsKey("content-type")) {
+                        String hd = session.getHeaders().get("content-type");
+                        if (hd != null) {
+                            // cuke: 修正中文乱码问题
+                            if (hd.toLowerCase().contains("multipart/form-data") && !hd.toLowerCase().contains("charset=")) {
+                                Matcher matcher = getPattern("[ |\t]*(boundary[ |\t]*=[ |\t]*['|\"]?[^\"^'^;^,]*['|\"]?)", Pattern.CASE_INSENSITIVE).matcher(hd);
+                                String boundary = matcher.find() ? matcher.group(1) : null;
+                                if (boundary != null) {
+                                    session.getHeaders().put("content-type", "multipart/form-data; charset=utf-8; " + boundary);
+                                }
+                            }
+                        }
+                    }
+                    session.parseBody(files);
+                } catch (IOException IOExc) {
+                    return createPlainTextResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR, "SERVER INTERNAL ERROR: IOException: " + IOExc.getMessage());
+                } catch (NanoHTTPD.ResponseException rex) {
+                    return createPlainTextResponse(rex.getStatus(), rex.getMessage());
+                }
+            }
+            // 危险接口（文件读写删/DoH）统一鉴权：token 经 ?token= / X-Token 头 / POST body 传入。
             // GET 类只读端点对本机自身请求豁免（clan:// 内部拉取走 http://<LAN-IP>:9978/file/...，
             // remote IP 为本机自身）；写/删端点始终要求 token，局域网其它设备不受豁免。
             if (isProtected(fileName, session.getMethod()) && !ServerToken.lanNoAuth()) {
                 boolean exempt = session.getMethod() == Method.GET && isSelfRequest(session);
                 if (!exempt && !ServerToken.verify(getToken(session))) {
-                    com.github.tvbox.osc.util.LOG.i("auth-denied: " + session.getRemoteIpAddress() + " " + session.getMethod() + " " + session.getUri() + " lanNoAuth=" + ServerToken.lanNoAuth());
+                    // 仅记路径前缀，不落完整 /file 路径（文件名属用户隐私，logcat/应用内日志可见）
+                    String logUri = fileName.startsWith("/file/") ? "/file/..." : fileName;
+                    com.github.tvbox.osc.util.LOG.i("auth-denied: " + session.getRemoteIpAddress() + " " + session.getMethod() + " " + logUri + " lanNoAuth=" + ServerToken.lanNoAuth());
                     return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden");
                 }
             }
@@ -214,27 +242,7 @@ public class RemoteServer extends NanoHTTPD {
                     }
                 }
             } else if (session.getMethod() == Method.POST) {
-                Map < String, String > files = new HashMap < String, String > ();
-                try {
-                    if (session.getHeaders().containsKey("content-type")) {
-                        String hd = session.getHeaders().get("content-type");
-                        if (hd != null) {
-                            // cuke: 修正中文乱码问题
-                            if (hd.toLowerCase().contains("multipart/form-data") && !hd.toLowerCase().contains("charset=")) {
-                                Matcher matcher = getPattern("[ |\t]*(boundary[ |\t]*=[ |\t]*['|\"]?[^\"^'^;^,]*['|\"]?)", Pattern.CASE_INSENSITIVE).matcher(hd);
-                                String boundary = matcher.find() ? matcher.group(1) : null;
-                                if (boundary != null) {
-                                    session.getHeaders().put("content-type", "multipart/form-data; charset=utf-8; " + boundary);
-                                }
-                            }
-                        }
-                    }
-                    session.parseBody(files);
-                } catch (IOException IOExc) {
-                    return createPlainTextResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR, "SERVER INTERNAL ERROR: IOException: " + IOExc.getMessage());
-                } catch (NanoHTTPD.ResponseException rex) {
-                    return createPlainTextResponse(rex.getStatus(), rex.getMessage());
-                }
+                // body 已在 serve 入口统一 parseBody（鉴权门需要读 body token），此处直接复用
                 for (RequestProcess process: postRequestList) {
                     if (process.isRequest(session, fileName)) {
                         return process.doResponse(session, fileName, session.getParms(), files);
@@ -275,7 +283,8 @@ public class RemoteServer extends NanoHTTPD {
                         String name = params.get("name");
                         String root = Environment.getExternalStorageDirectory().getAbsolutePath();
                         File file = new File(root + "/" + path + "/" + name);
-                        if (!isInsideRoot(new File(root), file)) {
+                        // isRoot：path="" & name="" 时 canonical==根，会在存储根落 .tvbox_folder 标记（与 D-1 同口径）
+                        if (!isInsideRoot(new File(root), file) || isRoot(file)) {
                             return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN, NanoHTTPD.MIME_PLAINTEXT, "Forbidden path");
                         }
                         if (!file.exists()) {
@@ -310,8 +319,8 @@ public class RemoteServer extends NanoHTTPD {
                         return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, NanoHTTPD.MIME_PLAINTEXT, "OK");
                     }
                 } catch (Throwable th) {
-                    // M-4/N-3：文件操作失败不得伪报 "OK"
-                    return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "Error: " + th.getMessage());
+                    // M-4/N-3：文件操作失败不得伪报 "OK"；getMessage 可能为 null，兜底类名
+                    return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "Error: " + (th.getMessage() != null ? th.getMessage() : th.getClass().getSimpleName()));
                 }
             }
         }
@@ -485,6 +494,8 @@ public class RemoteServer extends NanoHTTPD {
             destDir.mkdirs();
         }
         // N-2：ZipFile 用 try-with-resources 关闭（句柄泄漏），并加解压总量上限（zip bomb，有 token 保护、兜底）
+        // 上限按 extractFile 实际写入字节计：entry.getSize() 是 zip 中央目录自报值，攻击者可控（可为 -1），
+        // 用它计数上限形同虚设
         long totalBytes = 0;
         final long MAX_UNZIP_BYTES = 512L * 1024 * 1024;
         try (ZipFile zip = new ZipFile(zipFilePath)) {
@@ -499,11 +510,10 @@ public class RemoteServer extends NanoHTTPD {
                 continue;
             }
             if (!entry.isDirectory()) {
-                totalBytes += entry.getSize();
+                totalBytes += extractFile(is, filePath);
                 if (totalBytes > MAX_UNZIP_BYTES) {
                     throw new Throwable("unzip exceeds size limit (zip bomb?)");
                 }
-                extractFile(is, filePath);
             } else {
                 File dir = new File(filePath);
                 if (!dir.exists()) dir.mkdirs();
@@ -514,17 +524,25 @@ public class RemoteServer extends NanoHTTPD {
         }
     }
 
-    void extractFile(InputStream inputStream, String destFilePath) throws Throwable {
+    /** @return 实际写入字节数（供 zip-bomb 上限计数）。 */
+    long extractFile(InputStream inputStream, String destFilePath) throws Throwable {
         File dst = new File(destFilePath);
         if (dst.exists()) dst.delete();
         BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(destFilePath));
         byte[] bytesIn = new byte[2048];
-        int len = inputStream.read(bytesIn);
-        while (len > 0) {
-            bos.write(bytesIn, 0, len);
+        int len;
+        long total = 0;
+        try {
             len = inputStream.read(bytesIn);
+            while (len > 0) {
+                bos.write(bytesIn, 0, len);
+                total += len;
+                len = inputStream.read(bytesIn);
+            }
+        } finally {
+            bos.close();
         }
-        bos.close();
+        return total;
     }
 
 }
