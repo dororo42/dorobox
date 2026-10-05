@@ -160,6 +160,8 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'com.github.bumptech.glide:glide:4.16.0'
     kapt 'com.github.bumptech.glide:compiler:4.16.0'
+    // P-13：仅 debug 包引入，开发期自动发现 Activity/内存泄漏，不影响 release 体积
+    debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.14'
     implementation 'me.jessyan:autosize:1.2.1'
     implementation('com.thoughtworks.xstream:xstream:1.4.20') {
         exclude group: 'xmlpull', module: 'xmlpull'

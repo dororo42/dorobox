@@ -24,7 +24,8 @@ import java.util.concurrent.TimeoutException;
  */
 public class DbIo {
     private static final String TAG = "DbIo";
-    private static final long MAIN_WAIT_MS = 3000;
+    // P-5：ANR 阈值 5s，主线程一次 3s 等待 + 后续操作即可触发 ANR，收敛到 1s；调用方普遍已有判空
+    private static final long MAIN_WAIT_MS = 1000;
     private static final long BG_WAIT_MS = 30000;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     // 记录 executor 线程，用于重入检测：DB 任务内部再调 run() 时直接执行，防止单线程池自死锁

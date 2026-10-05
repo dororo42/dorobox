@@ -268,30 +268,29 @@ public class HomeActivity extends BaseActivity {
             @Override
             public void onClick(View v) {
                 FastClickCheckUtil.check(v);
-                File dir = getCacheDir();
-                FileUtils.recursiveDelete(dir);
-                dir = getExternalCacheDir();
-                FileUtils.recursiveDelete(dir);
                 Toast.makeText(HomeActivity.this, getString(R.string.hm_cache_del), Toast.LENGTH_SHORT).show();
-                if(dataInitOk && jarInitOk){
-                    String cspCachePath = FileUtils.getFilePath()+"/csp/";
-                    String jar=ApiConfig.get().getHomeSourceBean().getJar();
-                    String jarUrl=!jar.isEmpty()?jar:ApiConfig.get().getSpider();
-                    File cspCacheDir = new File(cspCachePath + MD5.string2MD5(jarUrl)+".jar");
-                    if (!cspCacheDir.exists()){
-                        reloadHome();
-                        return;
-                    }
-                    new Thread(() -> {
-                        try {
+                // P-1：cache 目录含播放缓存可达数百 MB，主线程递归删必 ANR（App.onCreate 的
+                // cleanPlayerCache 已迁后台，此处是同类操作的漏改点），整体移后台执行
+                new Thread(() -> {
+                    try {
+                        File dir = getCacheDir();
+                        FileUtils.recursiveDelete(dir);
+                        dir = getExternalCacheDir();
+                        if (dir != null) FileUtils.recursiveDelete(dir);
+                        if (dataInitOk && jarInitOk) {
+                            String cspCachePath = FileUtils.getFilePath() + "/csp/";
+                            String jar = ApiConfig.get().getHomeSourceBean().getJar();
+                            String jarUrl = !jar.isEmpty() ? jar : ApiConfig.get().getSpider();
+                            File cspCacheDir = new File(cspCachePath + MD5.string2MD5(jarUrl) + ".jar");
                             FileUtils.deleteFile(cspCacheDir);
                             ApiConfig.get().clearJarLoader();
-                            reloadHome();
-                        } catch (Exception e) {
-                            e.printStackTrace();
                         }
-                    }).start();
-                }
+                    } catch (Throwable th) {
+                        LOG.e("clear cache failed", th);
+                    }
+                    // reloadHome 涉及 UI，回主线程
+                    runOnUiThread(() -> reloadHome());
+                }, "clear-cache").start();
             }
         });
         tvName.setOnLongClickListener(new View.OnLongClickListener() {
@@ -417,8 +416,8 @@ public class HomeActivity extends BaseActivity {
         });
     }
 
-    private boolean dataInitOk = false;
-    private boolean jarInitOk = false;
+    private volatile boolean dataInitOk = false; // P-1：后台清缓存线程会读，保证可见性
+    private volatile boolean jarInitOk = false;
     private static boolean liveAutoJumped = false;
 
     // takagen99 : Switch to show / hide source title

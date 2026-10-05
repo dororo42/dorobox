@@ -56,9 +56,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -82,13 +85,23 @@ public class SourceViewModel extends ViewModel {
             searchExecutorService = null;
             JsLoader.stopAll();
         }
-        searchExecutorService = Executors.newFixedThreadPool(5);
+        // P-3：有界队列（64）+ Discard 策略——30+ 源全量 fan-out 时无界队列会让慢源无限占槽，
+        // 且被丢弃的任务必须由调用方同步扣减计数（execute 返回 false），否则搜索 loading 永久卡住
+        searchExecutorService = new ThreadPoolExecutor(5, 5, 0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(64), new ThreadPoolExecutor.DiscardPolicy());
     }
 
-    public void execute(Runnable runnable) {
+    /** @return false = 任务被拒绝（队列已满被丢弃），调用方需回滚计数 */
+    public boolean execute(Runnable runnable) {
         if (searchExecutorService != null) {
-            searchExecutorService.execute(runnable);
+            try {
+                searchExecutorService.execute(runnable);
+                return true;
+            } catch (RejectedExecutionException e) {
+                return false;
+            }
         }
+        return false;
     }
 
     public List<Runnable> shutdownNow() {
