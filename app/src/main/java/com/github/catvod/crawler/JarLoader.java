@@ -78,8 +78,10 @@ public class JarLoader {
                             }
                         });
                         initThread.start();
-                        // N-8：劣质 jar 的 Init.init 死循环不得挂死加载线程
+                        // N-8：劣质 jar 的 Init.init 死循环不得挂死加载线程；
+                        // 超时后补 interrupt 尽力回收（原实现超时后线程既不中断也非 daemon，永久泄漏）
                         initThread.join(3000);
+                        if (initThread.isAlive()) initThread.interrupt();
                         Log.i("JarLoader", "echo-自定义爬虫代码加载成功!");
                         success = true;
                         try {

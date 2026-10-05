@@ -262,10 +262,12 @@ public class PlayActivity extends BaseActivity {
                     e.printStackTrace();
                 }
                 long skip = st * 1000L;
-                if (CacheManager.getCache(MD5.string2MD5(url)) == null) {
+                // 单次读取（原实现连读两次，主线程经 DbIo 各一次有界等待，且两读间条目可被删致 (long)null NPE）
+                Object cached = CacheManager.getCache(MD5.string2MD5(url));
+                if (cached == null) {
                     return skip;
                 }
-                long rec = (long) CacheManager.getCache(MD5.string2MD5(url));
+                long rec = (long) cached;
                 if (rec < skip)
                     return skip;
                 return rec;
@@ -1028,6 +1030,10 @@ public class PlayActivity extends BaseActivity {
                     if (parse || jx) {
                         boolean userJxList = (playUrl.isEmpty() && ApiConfig.get().getVipParseFlags().contains(flag)) || jx;
                         initParse(flag, userJxList, playUrl, url);
+                    } else if ((playUrl + url).trim().isEmpty()) {
+                        // 坏源 parse=0 且 url 为空：原实现 setUrl("") 停在 STATE_IDLE——
+                        // 黑屏、无提示、无重试，且已创建的 ExoPlayer 泄漏
+                        errorWithRetry("播放地址为空", false);
                     } else {
                         mController.showParse(false);
                         playUrl(playUrl + url, headers);
@@ -1266,12 +1272,15 @@ public class PlayActivity extends BaseActivity {
             registerReceiver(pipActionReceiver, new IntentFilter(BROADCAST_ACTION));
 
         } else {
-            // Closed playback
-            if (onStopCalled) {
+            // Closed playback：mVideoView 可能已被 onDestroy 置 null、receiver 可能未注册
+            //（部分 OEM/多窗口会在未先回调 true 时回调 false）——均需判空
+            if (onStopCalled && mVideoView != null) {
                 mVideoView.release();
             }
-            unregisterReceiver(pipActionReceiver);
-            pipActionReceiver = null;
+            if (pipActionReceiver != null) {
+                unregisterReceiver(pipActionReceiver);
+                pipActionReceiver = null;
+            }
         }
     }
 
@@ -1319,6 +1328,8 @@ public class PlayActivity extends BaseActivity {
             }
             return;
         }
+        // playGroupCount 可能为 0（旧记录/未初始化）：直接除零 ArithmeticException
+        if (mVodInfo.playGroupCount <= 0) mVodInfo.playGroupCount = mVodInfo.seriesMap.get(mVodInfo.playFlag).size();
         mVodInfo.playIndex++;
         mVodInfo.playGroup += mVodInfo.playIndex / mVodInfo.playGroupCount;
         mVodInfo.playIndex = mVodInfo.playIndex % mVodInfo.playGroupCount;
@@ -1342,6 +1353,10 @@ public class PlayActivity extends BaseActivity {
         }
         if (mVodInfo.playIndex == 0) {
             mVodInfo.playGroup--;
+            // playGroupCount 可能为 0（旧记录）：得 -1 后 play() 里 .get(-1) 越界
+            if (mVodInfo.playGroupCount <= 0) {
+                mVodInfo.playGroupCount = mVodInfo.seriesMap.get(mVodInfo.playFlag).size();
+            }
             mVodInfo.playIndex = mVodInfo.playGroupCount - 1;
         } else {
             mVodInfo.playIndex--;
@@ -1401,6 +1416,19 @@ public class PlayActivity extends BaseActivity {
     }
 
     public void play(boolean reset) {
+        if (mVodInfo == null) return;
+        List<VodInfo.VodSeries> series = mVodInfo.seriesMap.get(mVodInfo.playFlag);
+        if (series == null || series.isEmpty()) return;
+        // 旧版本历史记录 playGroupCount 反序列化为 0：getplayIndex() 恒为 playIndex，
+        // playNext/playPrevious 亦会除零——按当前剧集数推导并夹取越界索引
+        if (mVodInfo.playGroupCount <= 0) mVodInfo.playGroupCount = series.size();
+        if (mVodInfo.getplayIndex() >= series.size()) {
+            mVodInfo.playGroup = (series.size() - 1) / mVodInfo.playGroupCount;
+            mVodInfo.playIndex = (series.size() - 1) % mVodInfo.playGroupCount;
+        } else if (mVodInfo.getplayIndex() < 0) {
+            mVodInfo.playGroup = 0;
+            mVodInfo.playIndex = 0;
+        }
         VodInfo.VodSeries vs = mVodInfo.seriesMap.get(mVodInfo.playFlag).get(mVodInfo.getplayIndex());
         EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_REFRESH, mVodInfo.getplayIndex()));
         EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_REFRESH_NOTIFY, mVodInfo.name + "&&" + vs.name));

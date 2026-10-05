@@ -247,6 +247,16 @@ public class JsSpider extends Spider {
                     moduleExtName = "__jsEvalReturn";
                     cat = true;
                 }
+                // 求值前先 compile 预检：预编译 .so 的 evaluate 在模块求值失败（源 JS 语法错/
+                // 触发内存或栈上限）时不判空直接 JS_GetModuleExport → SIGSEGV 杀进程。
+                // 语法坏源在此跳过，不进 evaluateModule
+                try {
+                    ctx.compileModule(content, api);
+                } catch (Throwable th) {
+                    LOG.e("echo-spider JS compile failed, skip source: " + api + " (" + th.getMessage() + ")");
+                    inited = true;
+                    return null;
+                }
                 ctx.evaluateModule(content, api);
                 ctx.evaluateModule(String.format(SPIDER_STRING_CODE, api) + "globalThis." + key + " = __JS_SPIDER__;", "tv_box_root.js");
                 //ctx.evaluateModule(content, api, moduleExtName);
@@ -267,9 +277,12 @@ public class JsSpider extends Spider {
 
     private void createCtx() {
         ctx = QuickJSContext.create();
-        // D-5：资源上限——劣质/恶意源 JS 可无限吃 native heap 或深层递归爆栈（进程被 LMK 杀）
-        ctx.setMemoryLimit(64 * 1024 * 1024);      // 64MB
-        ctx.setMaxStackSize(1024 * 1024);          // 1MB（drpy 系源递归较深，默认 256KB 偏紧）
+        // D-5：资源上限——劣质/恶意源 JS 可无限吃 native heap 或深层递归爆栈（进程被 LMK 杀）。
+        // 注意：上限一旦命中，模块求值会失败，而预编译 .so 的 evaluate 不判空直接
+        // JS_GetModuleExport → SIGSEGV（真机已复现 2 次，均发生在搜索 fan-out 加载
+        // js 源时）。64MB/1MB 对 drpy 系源过紧，放宽到 512MB/8MB 仍保持有界
+        ctx.setMemoryLimit(512 * 1024 * 1024);     // 512MB
+        ctx.setMaxStackSize(8 * 1024 * 1024);      // 8MB（drpy 系源递归较深）
         ctx.setModuleLoader(new QuickJSContext.BytecodeModuleLoader() {
             @Override
             public byte[] getModuleBytecode(String moduleName) {

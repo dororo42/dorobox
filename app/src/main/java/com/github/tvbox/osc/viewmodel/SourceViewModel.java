@@ -47,6 +47,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -113,12 +114,15 @@ public class SourceViewModel extends ViewModel {
     public static final ExecutorService spThreadPool = Executors.newSingleThreadExecutor();
 
     //homeContent缓存，最多存储5个sourceKey的AbsSortXml对象
-    private static final Map<String, AbsSortXml> sortCache = new LinkedHashMap<String, AbsSortXml>(5, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Entry<String, AbsSortXml> eldest) {
-            return size() > 5;
-        }
-    };
+    // accessOrder=true 的 LinkedHashMap 其 get 即结构性修改；主线程读 + spider 线程/OkGo 回调线程写，
+    // 并发可致链表成环（get 死循环 ANR）——包一层 synchronizedMap
+    private static final Map<String, AbsSortXml> sortCache = Collections.synchronizedMap(
+            new LinkedHashMap<String, AbsSortXml>(5, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Entry<String, AbsSortXml> eldest) {
+                    return size() > 5;
+                }
+            });
     // homeContent
     public void getSort(final String sourceKey) {
         LOG.i("echo--getSort-start");
@@ -140,6 +144,11 @@ public class SourceViewModel extends ViewModel {
         }
 
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
+        if (sourceBean == null) {
+            // sourceKey 过期/被配置剔除时为 null，裸解引用会在主线程 NPE（照抄 getDetail 的防御范式）
+            sortResult.postValue(null);
+            return;
+        }
         final int type = sourceBean.getType();
         if (type == 3) {
             Runnable waitResponse = new Runnable() {
@@ -603,6 +612,11 @@ public class SourceViewModel extends ViewModel {
     // searchContent
     public void getSearch(String sourceKey, String wd) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
+        if (sourceBean == null) {
+            // 本方法经 SearchActivity 在工作线程执行，未捕获 NPE 会直接杀进程
+            searchResult.postValue(null);
+            return;
+        }
         int type = sourceBean.getType();
         if (type == 3) {
             try {
@@ -706,6 +720,10 @@ public class SourceViewModel extends ViewModel {
     // searchContent
     public void getQuickSearch(String sourceKey, String wd) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
+        if (sourceBean == null) {
+            quickSearchResult.postValue(null);
+            return;
+        }
         int type = sourceBean.getType();
         if (type == 3) {
             try {
@@ -792,6 +810,7 @@ public class SourceViewModel extends ViewModel {
         Callable<JSONObject> callable = () -> {
             if (Thread.currentThread().isInterrupted()) return null;
             SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
+            if (sourceBean == null) return null;
             int type = sourceBean.getType();
             JSONObject result = null;
             if (type == 3) {

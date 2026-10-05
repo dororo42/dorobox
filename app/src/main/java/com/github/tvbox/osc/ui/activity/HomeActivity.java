@@ -113,6 +113,10 @@ public class HomeActivity extends BaseActivity {
     private int sortFocused = 0;
     public View sortFocusView = null;
     private final Handler mHandler = new Handler();
+    // 时钟独立 Handler：onPause 只清时钟；此前 removeCallbacksAndMessages(null) 会把
+    // loadConfig/loadJar 成功回调里续链用的 postDelayed(initData,50) 一并取消，
+    // 加载中途退到桌面再回来主页就永久卡在加载态
+    private final Handler mClockHandler = new Handler();
     private long mExitTime = 0;
     private final Runnable mRunnable = new Runnable() {
         @SuppressLint({"DefaultLocale", "SetTextI18n"})
@@ -239,6 +243,10 @@ public class HomeActivity extends BaseActivity {
         });
         this.mGridView.setOnInBorderKeyEventListener(new TvRecyclerView.OnInBorderKeyEventListener() {
             public boolean onInBorderKeyEvent(int direction, View view) {
+                // fragments 可能为空（refreshEmpty 后）或 sortFocused 越界，先做界检查
+                if (sortFocused < 0 || sortFocused >= fragments.size()) {
+                    return false;
+                }
                 if (direction == View.FOCUS_UP) {
                     BaseLazyFragment baseLazyFragment = fragments.get(sortFocused);
                     if ((baseLazyFragment instanceof GridFragment)) {// 弹出筛选
@@ -411,6 +419,7 @@ public class HomeActivity extends BaseActivity {
 
     private boolean dataInitOk = false;
     private boolean jarInitOk = false;
+    private static boolean liveAutoJumped = false;
 
     // takagen99 : Switch to show / hide source title
     boolean HomeShow = Hawk.get(HawkConfig.HOME_SHOW_SOURCE, false);
@@ -452,9 +461,12 @@ public class HomeActivity extends BaseActivity {
             } else {
                 LOG.e("无");
             }
-            if (Hawk.get(HawkConfig.HOME_DEFAULT_SHOW, false)) {
+            // 冷启动直达直播：仅每进程一次。放这里（而非 onCreate）是上游设计，
+            // 但原实现每次加载完成都会触发，换源/设置返回都会被重新丢进直播页
+            if (Hawk.get(HawkConfig.HOME_DEFAULT_SHOW, false) && !liveAutoJumped) {
+                liveAutoJumped = true;
                 jumpActivity(LivePlayActivity.class);
-            }         
+            }
             return;
         }
         tvNameAnimation();
@@ -592,7 +604,10 @@ public class HomeActivity extends BaseActivity {
     }
 
     private void initViewPager(AbsSortXml absXml) {
-        if (sortAdapter.getData().size() > 0) {
+        // sortResult 理论上可能二次投递（LiveData 粘性/重入 initData）：
+        // fragments 只 add 不 clear，重建 adapter 会让列表与 FragmentManager 里的旧实例分叉
+        // （FragmentPagerAdapter 按 tag 复用旧 Fragment，新实例永不 attach）——首次构建后不再重建
+        if (sortAdapter.getData().size() > 0 && fragments.isEmpty()) {
             for (MovieSort.SortData data : sortAdapter.getData()) {
                 if (data.id.equals("my0")) {
                     if (Hawk.get(HawkConfig.HOME_REC, 0) == 1 && absXml != null && absXml.videoList != null && absXml.videoList.size() > 0) {
@@ -656,7 +671,9 @@ public class HomeActivity extends BaseActivity {
             } else {
                 doExit();
             }
-        } else if (baseLazyFragment instanceof UserFragment && UserFragment.tvHotListForGrid.canScrollVertically(-1)) {
+        } else if (baseLazyFragment instanceof UserFragment
+                && UserFragment.tvHotListForGrid != null
+                && UserFragment.tvHotListForGrid.canScrollVertically(-1)) {
             // 如果 UserFragment 列表可以向上滚动，则滚动到顶部
             UserFragment.tvHotListForGrid.scrollToPosition(0);
             this.mGridView.setSelection(0);
@@ -707,13 +724,14 @@ public class HomeActivity extends BaseActivity {
         } else {
             tvMenu.setVisibility(View.GONE);
         }
-        mHandler.post(mRunnable);
+        mClockHandler.post(mRunnable);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        mHandler.removeCallbacksAndMessages(null);
+        mClockHandler.removeCallbacksAndMessages(null);
+        mHandler.removeCallbacks(mDataRunnable);
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
@@ -842,7 +860,9 @@ public class HomeActivity extends BaseActivity {
     protected void onDestroy() {
         super.onDestroy();
         EventBus.getDefault().unregister(this);
-        AppManager.getInstance().appExit(0);
+        // 进程自杀只保留在 doExit 双击退出路径；此处若 appExit(killProcess)，
+        // SettingActivity/onBackPressed finishAllActivity 后启动的新主页会被
+        // 连同进程一起杀掉（表现为"设置源→加载成功→闪退"），换源 reloadHome 同理
         ControlManager.get().stopServer();
     }
 

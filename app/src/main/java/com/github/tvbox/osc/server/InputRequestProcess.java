@@ -32,9 +32,13 @@ public class InputRequestProcess implements RequestProcess {
     public NanoHTTPD.Response doResponse(NanoHTTPD.IHTTPSession session, String fileName, Map<String, String> params, Map<String, String> files) {
         DataReceiver mDataReceiver = remoteServer.getDataReceiver();
         switch (fileName) {
-            case "/action":
-                if (params.get("do") != null && mDataReceiver != null) {
-                    String action = params.get("do");
+            case "/action": {
+                String action = params.get("do");
+                // 缺 do / 未知 do 返回 400 而非 200 "ok"（调用方按状态码处理，监控可探测）
+                if (action == null) {
+                    return RemoteServer.createJSONResponse(NanoHTTPD.Response.Status.BAD_REQUEST, "{\"error\":\"missing param do\"}");
+                }
+                if (mDataReceiver != null) {
 
                     // 参数校验（M-2）：缺必选参数返回 400 而非 NPE 断连
                     String missing = null;
@@ -111,9 +115,15 @@ public class InputRequestProcess implements RequestProcess {
                             mDataReceiver.onMirrorReceived(params.get("id").trim(), params.get("sourceKey").trim());
                             return RemoteServer.createPlainTextResponse(NanoHTTPD.Response.Status.OK, "mirrored");
                         }
+                        // 未知 do 动作
+                        default:
+                            return RemoteServer.createJSONResponse(NanoHTTPD.Response.Status.BAD_REQUEST, "{\"error\":\"unknown action\"}");
                     }
+                    return RemoteServer.createPlainTextResponse(NanoHTTPD.Response.Status.OK, "ok");
                 }
-                return RemoteServer.createPlainTextResponse(NanoHTTPD.Response.Status.OK, "ok");
+                // receiver 未接线（服务未就绪）
+                return RemoteServer.createJSONResponse(NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE, "{\"error\":\"no receiver\"}");
+            }
             default:
                 return RemoteServer.createPlainTextResponse(NanoHTTPD.Response.Status.NOT_FOUND, "Error 404, file not found.");
         }

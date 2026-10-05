@@ -178,13 +178,32 @@ public class AppDataManager {
                         tmp.delete();
                         return false; // 备份文件损坏：原库未动
                     }
-                    if (db.exists()) db.delete();
-                    deleteSidecars(db);
-                    if (!tmp.renameTo(db)) {
-                        // rename 失败（跨文件系统等）：回退为 copy，但已校验过内容
-                        FileUtils.copyFile(tmp, db);
-                        tmp.delete();
+                    // 先把原库挪到 .bak 再替换：若 rename 失败走 copy 回退、且 copy 中途失败，
+                    // 原库不能已被删（否则收藏/历史/进度全灭且无法回滚）
+                    File bak = new File(db.getAbsolutePath() + ".bak");
+                    if (bak.exists()) bak.delete();
+                    boolean replaced = false;
+                    if (db.exists() && !db.renameTo(bak)) {
+                        return false; // 原库无法挪开：放弃替换，原库完好
                     }
+                    try {
+                        if (tmp.renameTo(db)) {
+                            replaced = true;
+                        } else {
+                            // rename 失败（跨文件系统等）：回退为 copy，但已校验过内容
+                            FileUtils.copyFile(tmp, db);
+                            replaced = true;
+                        }
+                    } finally {
+                        if (replaced) {
+                            deleteSidecars(db);
+                            if (bak.exists()) bak.delete();
+                        } else if (bak.exists() && !db.exists()) {
+                            // copy 回退也失败：把原库挪回来
+                            if (!bak.renameTo(db)) bak.delete();
+                        }
+                    }
+                    if (tmp.exists()) tmp.delete();
                     return true;
                 } catch (java.io.IOException e) {
                     e.printStackTrace();

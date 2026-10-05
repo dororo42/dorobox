@@ -73,9 +73,11 @@ public class PlayService extends Service {
     }
     
     private Notification buildNotification(){
+        // videoInfo 约定为 "标题&&副标题"；未来调用方若 post 无 && 的值，裸 [1] 会 ArrayIndexOutOfBounds
+        String[] infoParts = videoInfo.split("&&", 2);
         RemoteViews remoteViews = new RemoteViews(getPackageName(), R.layout.notification_player);
-        remoteViews.setTextViewText(R.id.tv_title, videoInfo.split("&&")[0]);
-        remoteViews.setTextViewText(R.id.tv_subtitle, "正在播放: "+videoInfo.split("&&")[1]);
+        remoteViews.setTextViewText(R.id.tv_title, infoParts[0]);
+        remoteViews.setTextViewText(R.id.tv_subtitle, infoParts.length > 1 ? "正在播放: " + infoParts[1] : "");
         remoteViews.setImageViewResource(R.id.iv_play_pause,videoView.isPlaying()?R.drawable.ic_notify_pause:R.drawable.ic_notify_play);
 
         // 创建通知栏操作

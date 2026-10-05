@@ -539,6 +539,9 @@ public class LivePlayActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // 与 init 里的 register 配对；缺 unregister 时销毁后仍收 TYPE_LIVEPLAY_UPDATE
+        // 刷新已死界面，每进一次直播泄漏一个 Activity
+        EventBus.getDefault().unregister(this);
         if (mVideoView != null) {
             mVideoView.release();
             mVideoView = null;
