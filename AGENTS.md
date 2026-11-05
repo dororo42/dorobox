@@ -4,9 +4,9 @@ takagen99/Box 的本地开发副本（TVBox 血统安卓应用，Java，minSdk 2
 
 ## Current Handoff
 
-- Latest: `handoffs/2026-10-10-perf-stability-fixes/HANDOFF.md`
-- Branch: main @ bd8932bed（已推送至 `dororo42/dorobox`；CI run 37264374646 绿）
-- Status: 性能与稳定性审查（报告 `[REDACTED]`）P-1..P-13 已实施并 CI 全绿：清缓存 ANR 移后台、直播页 Handler 泄漏清理、搜索有界队列背压、UA 内存化、DbIo 等待收敛、Glide 运行时分档（注意 redirectglide 已占 AppGlideModule，勿再加）、AppManager 线程安全、EpgUtil 异步化、LeakCanary(debug)。真机 [REDACTED] 关机中，回归待开机后执行（装 bd8932bed 包覆盖）。第 3 轮崩溃修复（EventBus/appExit/QuickJS SIGSEGV）见上一份 handoff。
+- Latest: `handoffs/2026-10-10-perf-stability-fixes/HANDOFF.md`（含 11-05 三段补记；链头 `ee64c7aa1`）
+- Branch: main @ ccb13f2fe→ee64c7aa1（已推送至 `dororo42/dorobox`；CI run 41943996731 绿）
+- Status: P-1..P-13 已实施并 CI 全绿：清缓存 ANR 移后台、直播页 Handler 泄漏清理、搜索有界队列背压、UA 内存化、DbIo 等待收敛、Glide 运行时分档（注意 redirectglide 已占 AppGlideModule，勿再加）、AppManager 线程安全、EpgUtil 异步化、LeakCanary(debug)。11-05：崩溃族 4 处已修（0eca9e878）、P-3 收敛 + QuickJS 加固（ee64c7aa1），真机 229:5555 装 2229 包全绿。第 3 轮崩溃修复（EventBus/appExit/QuickJS SIGSEGV）见上一份 handoff。
 
 任何 agent 开始工作前，先读上面的 HANDOFF.md。这份指针由 agent-handoff 维护，手工交接时请同步更新。
 
