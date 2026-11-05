@@ -17,7 +17,6 @@ import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.chad.library.adapter.base.BaseViewHolder;
 import com.chad.library.adapter.base.entity.MultiItemEntity;
 import com.github.tvbox.osc.R;
-import com.github.tvbox.osc.ui.activity.HomeActivity;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,7 +30,7 @@ import java.util.List;
  */
 public class SearchKeyboard extends FrameLayout {
     private RecyclerView mRecyclerView;
-    private List<String> keys = Arrays.asList(HomeActivity.getRes().getString(R.string.act_search_rem), HomeActivity.getRes().getString(R.string.act_search_del), "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0");
+    private List<String> keys;
     private List<Keyboard> keyboardList = new ArrayList<>();
     private OnSearchKeyListener searchKeyListener;
     private OnFocusChangeListener focusChangeListener = new OnFocusChangeListener() {
@@ -57,6 +56,10 @@ public class SearchKeyboard extends FrameLayout {
     }
 
     private void initView() {
+        // keys 曾在字段初始化器里经静态 HomeActivity.getRes() 取值——进程被回收后从最近任务
+        // 直接恢复 SearchActivity 时 HomeActivity.init() 未跑、res 为 null，NPE 使搜索页起不来。
+        // 改用视图自身 context，在 super(context) 之后的 initView 里取值，不再依赖静态状态。
+        keys = Arrays.asList(getContext().getString(R.string.act_search_rem), getContext().getString(R.string.act_search_del), "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0");
         View view = LayoutInflater.from(getContext()).inflate(R.layout.layout_keyborad, this);
         mRecyclerView = view.findViewById(R.id.mRecyclerView);
         GridLayoutManager manager = new GridLayoutManager(getContext(), 6);

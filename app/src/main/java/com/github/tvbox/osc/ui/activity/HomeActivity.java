@@ -88,9 +88,6 @@ import me.jessyan.autosize.utils.AutoSizeUtils;
 
 public class HomeActivity extends BaseActivity {
 
-    // takagen99: Added to allow read string
-    private static Resources res;
-
     private View currentView;
     private LinearLayout topLayout;
     private LinearLayout contentLayout;
@@ -140,9 +137,6 @@ public class HomeActivity extends BaseActivity {
 
     @Override
     protected void init() {
-        // takagen99: Added to allow read string
-        res = getResources();
-
         EventBus.getDefault().register(this);
         ControlManager.get().startServer();
         App.startWebserver();
@@ -158,8 +152,13 @@ public class HomeActivity extends BaseActivity {
     }
 
     // takagen99: Added to allow read string
+    // 原实现把 res 存为 Activity 生命周期静态字段（init() 里 res=getResources()）：进程被回收后
+    // 从最近任务/远程搜索直接恢复 SearchActivity 等页面时 init 未跑、res 为 null，
+    // SearchKeyboard/SearchHelper/ApiDialog 等调用方连环 NPE（真机 11-01、11-05 实测）。
+    // 改为 Application 级资源——App 构造先于一切 Activity，任何进程态下都可用。
     public static Resources getRes() {
-        return res;
+        App app = App.getInstance();
+        return app != null ? app.getResources() : null;
     }
 
     private void initView() {
@@ -272,24 +271,11 @@ public class HomeActivity extends BaseActivity {
                 // P-1：cache 目录含播放缓存可达数百 MB，主线程递归删必 ANR（App.onCreate 的
                 // cleanPlayerCache 已迁后台，此处是同类操作的漏改点），整体移后台执行
                 new Thread(() -> {
-                    try {
-                        File dir = getCacheDir();
-                        FileUtils.recursiveDelete(dir);
-                        dir = getExternalCacheDir();
-                        if (dir != null) FileUtils.recursiveDelete(dir);
-                        if (dataInitOk && jarInitOk) {
-                            String cspCachePath = FileUtils.getFilePath() + "/csp/";
-                            String jar = ApiConfig.get().getHomeSourceBean().getJar();
-                            String jarUrl = !jar.isEmpty() ? jar : ApiConfig.get().getSpider();
-                            File cspCacheDir = new File(cspCachePath + MD5.string2MD5(jarUrl) + ".jar");
-                            FileUtils.deleteFile(cspCacheDir);
-                            ApiConfig.get().clearJarLoader();
-                        }
-                    } catch (Throwable th) {
-                        LOG.e("clear cache failed", th);
+                    // 仅当数据源/jar 初始化完成后才重启首页：init 窗口期内整栈重启（CLEAR_TASK）
+                    // 会打断进行中的初始化，恢复 P-1 前的既有门控语义
+                    if (clearCacheAndJar()) {
+                        runOnUiThread(() -> reloadHome());
                     }
-                    // reloadHome 涉及 UI，回主线程
-                    runOnUiThread(() -> reloadHome());
                 }, "clear-cache").start();
             }
         });
@@ -436,11 +422,11 @@ public class HomeActivity extends BaseActivity {
         if (isNetworkAvailable()) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
             if (cm.getActiveNetworkInfo().getType() == ConnectivityManager.TYPE_WIFI) {
-                tvWifi.setImageDrawable(res.getDrawable(R.drawable.hm_wifi));
+                tvWifi.setImageDrawable(getResources().getDrawable(R.drawable.hm_wifi));
             } else if (cm.getActiveNetworkInfo().getType() == ConnectivityManager.TYPE_MOBILE) {
-                tvWifi.setImageDrawable(res.getDrawable(R.drawable.hm_mobile));
+                tvWifi.setImageDrawable(getResources().getDrawable(R.drawable.hm_mobile));
             } else if (cm.getActiveNetworkInfo().getType() == ConnectivityManager.TYPE_ETHERNET) {
-                tvWifi.setImageDrawable(res.getDrawable(R.drawable.hm_lan));
+                tvWifi.setImageDrawable(getResources().getDrawable(R.drawable.hm_lan));
             }
         }
 
@@ -934,6 +920,29 @@ public class HomeActivity extends BaseActivity {
         bundle.putBoolean("useCache", true);
         intent.putExtras(bundle);
         HomeActivity.this.startActivity(intent);
+    }
+
+    // 清缓存线程体：删 cache/external-cache，并在初始化完成后同步清 jar 缓存与加载器。
+    // 返回值决定是否 reloadHome：仅 dataInitOk && jarInitOk 时重启首页（P-1 前的门控语义）
+    private boolean clearCacheAndJar() {
+        try {
+            File dir = getCacheDir();
+            FileUtils.recursiveDelete(dir);
+            dir = getExternalCacheDir();
+            if (dir != null) FileUtils.recursiveDelete(dir);
+            if (dataInitOk && jarInitOk) {
+                String cspCachePath = FileUtils.getFilePath() + "/csp/";
+                String jar = ApiConfig.get().getHomeSourceBean().getJar();
+                String jarUrl = !jar.isEmpty() ? jar : ApiConfig.get().getSpider();
+                File cspCacheDir = new File(cspCachePath + MD5.string2MD5(jarUrl) + ".jar");
+                FileUtils.deleteFile(cspCacheDir);
+                ApiConfig.get().clearJarLoader();
+                return true;
+            }
+        } catch (Throwable th) {
+            LOG.e("clear cache failed", th);
+        }
+        return false;
     }
 
     private void refreshEmpty() {

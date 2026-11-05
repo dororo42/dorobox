@@ -182,6 +182,9 @@ public class GridFragment extends BaseLazyFragment {
             v3.setLayoutParams(mGridView.getLayoutParams());
             v3.setPadding(mGridView.getPaddingLeft(), mGridView.getPaddingTop(), mGridView.getPaddingRight(), mGridView.getPaddingBottom());
             v3.setClipToPadding(mGridView.getClipToPadding());
+            // 防御：代码创建的视图没有 XML tv_layoutManager，若随后 init 流程中断，
+            // 首布局即踩 TvRecyclerView.onLayout 的无判空探测路径（NPE）——先给默认 manager
+            v3.setLayoutManager(new V7GridLayoutManager(this.mContext, 5));
             ((ViewGroup) mGridView.getParent()).addView(v3);
             mGridView.setVisibility(View.GONE);
             mGridView = v3;

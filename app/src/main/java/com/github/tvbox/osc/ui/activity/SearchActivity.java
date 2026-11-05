@@ -673,7 +673,10 @@ public class SearchActivity extends BaseActivity {
         // 附带远程控制令牌：与其它入口一致，扫码打开的页面自动登录 token（搜索动作本身放行，token 对开放动作无害）
         String address = ControlManager.get().getAddress(false) + "?token=" + ServerToken.get();
         tvAddress.setText(String.format("远程搜索使用手机/电脑扫描下面二维码或者直接浏览器访问地址\n%s", address));
-        ivQRCode.setImageBitmap(QRCodeGen.generateBitmap(address, 300, 300));
+        // 恢复路径下远程 server 未启动时地址为空，此时二维码无意义，避免生成空内容码
+        if (!address.startsWith("?token=")) {
+            ivQRCode.setImageBitmap(QRCodeGen.generateBitmap(address, 300, 300));
+        }
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)

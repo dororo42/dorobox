@@ -48,6 +48,10 @@ public class ControlManager {
     }
 
     public String getAddress(boolean local) {
+        // mServer 仅在 startServer()（HomeActivity 流程）里创建；进程被回收后从最近任务
+        // 直接恢复 SearchActivity/PushActivity 等页面时 server 尚未启动，此处曾直接 NPE
+        // （SearchActivity.refreshQRCode 实测崩溃）。未启动属合法状态，返回空串由调用方降级。
+        if (mServer == null) return "";
         return local ? mServer.getLoadAddress() : mServer.getServerAddress();
     }
 
