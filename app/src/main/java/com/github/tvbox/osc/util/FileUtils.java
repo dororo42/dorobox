@@ -183,7 +183,10 @@ public class FileUtils {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            return name;
+            // 不能把模块名/URL 当 JS 源码返回：预编译 .so 的 evaluate 遇到非法源码会
+            // 不判空直接 JS_GetModuleExport → SIGSEGV（真机 11-05 搜索 fan-out 复现）。
+            // 取模块失败一律降级为空串，由调用方空模块兜底。
+            return "";
         }
         // 统一出口防御：任何分支取到的 HTML 内容一律拒载（防 QuickJS 解析 '<' 触发 pending exception）
         if (rel != null && rel.trim().startsWith("<")) {

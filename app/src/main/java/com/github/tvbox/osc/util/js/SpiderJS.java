@@ -65,10 +65,21 @@ public class SpiderJS extends Spider {
     private void initjs(Class<?> cls) throws Exception {
         submit(() -> {
             if (runtime == null) this.runtime = QuickJSContext.create();
+            runtime.setMemoryLimit(512 * 1024 * 1024);
+            runtime.setMaxStackSize(8 * 1024 * 1024);
             runtime.setModuleLoader(new QuickJSContext.DefaultModuleLoader() {
                 @Override
                 public String getModuleStringCode(String moduleName) {
-                    return FileUtils.loadModule(moduleName);
+                    // 预编译 .so 的 evaluate 在模块源码为坏内容（远程 lib 取回 HTML 错误页、
+                    // 空串、语法错）时不判空直接 JS_GetModuleExport → SIGSEGV 杀进程
+                    // （真机 11-05 搜索 fan-out 复现）。坏内容一律降级为空模块源码。
+                    String code = FileUtils.loadModule(moduleName);
+                    if (code == null || code.trim().isEmpty()
+                            || code.trim().startsWith("<!") || code.trim().startsWith("<html")) {
+                        LOG.i("echo-spiderJS bad module, use fallback: " + moduleName);
+                        return "export default {};";
+                    }
+                    return code;
                 }
 
                 @Override
@@ -128,7 +139,17 @@ public class SpiderJS extends Spider {
                 jsContent = jsContent.replace("__JS_SPIDER__", "globalThis." + key);
             }
             //LOG.e("cls", jsContent);
-            runtime.evaluateModule(jsContent + "\n\n;console.log(typeof(" + key + ".init));\n\nconsole.log(typeof(req));\n\nconsole.log(Object.keys(" + key + "));", js);
+            // 预编译 .so 的 evaluate 在模块求值失败（坏/远程 lib 取回 HTML、语法错、
+            // 内存或栈超限）时不判空直接 JS_GetModuleExport → SIGSEGV 杀进程。
+            // 与 JsSpider.initializeJS 同族防护：求值前先 compile 预检，坏源直接跳过
+            String finalScript = jsContent + "\n\n;console.log(typeof(" + key + ".init));\n\nconsole.log(typeof(req));\n\nconsole.log(Object.keys(" + key + "));";
+            try {
+                runtime.compileModule(finalScript, js);
+            } catch (Throwable th) {
+                LOG.e("echo-spiderJS compile failed, skip source: " + js + " (" + th.getMessage() + ")");
+                return null;
+            }
+            runtime.evaluateModule(finalScript, js);
             jsObject = (JSObject) runtime.get(runtime.getGlobalObject(), key);
             return null;
         }).get();

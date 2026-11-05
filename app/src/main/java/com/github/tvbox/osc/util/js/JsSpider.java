@@ -284,25 +284,44 @@ public class JsSpider extends Spider {
         ctx.setMemoryLimit(512 * 1024 * 1024);     // 512MB
         ctx.setMaxStackSize(8 * 1024 * 1024);      // 8MB（drpy 系源递归较深）
         ctx.setModuleLoader(new QuickJSContext.BytecodeModuleLoader() {
+            // 降级模块必须是「有 default 导出」的合法模块：编译空串得到的模块没有导出，
+            // 预编译 .so 的 JS_GetModuleExport 拿不到导出对象不判空 → SIGSEGV（真机复现）。
+            // 给最小对象后，源 JS 依赖具体导出只会得到 undefined（Java 层可捕获），不杀进程。
+            private static final String FALLBACK_MODULE = "export default {};";
+
             @Override
             public byte[] getModuleBytecode(String moduleName) {
-                String ss = FileUtils.loadModule(moduleName);
-                if (TextUtils.isEmpty(ss)) {
-                    LOG.i("echo-getModuleBytecode empty :"+ moduleName);
-                    return ctx.compileModule("", moduleName);
-                }
-                if(ss.startsWith("//DRPY")){
-                    return Base64.decode(ss.replace("//DRPY",""), Base64.URL_SAFE);
-                } else if(ss.startsWith("//bb")){
-                    byte[] b = Base64.decode(ss.replace("//bb",""), 0);
-                    return byteFF(b);
-                } else {
-                    if (moduleName.contains("cheerio.min.js")) {
-                        FileUtils.setCacheByte("cheerio.min", ctx.compileModule(ss, "cheerio.min.js"));
-                    } else if (moduleName.contains("crypto-js.js")) {
-                        FileUtils.setCacheByte("crypto-js", ctx.compileModule(ss, "crypto-js.js"));
+                // 预编译 .so 的 evaluate 在模块字节码损坏/为 null 时不判空直接
+                // JS_GetModuleExport → SIGSEGV（真机 11-05 22:14 搜索 fan-out 复现：
+                // clun.top 远程 lib 域名解析失败，依赖模块取回坏内容）。
+                // 任何编译失败一律降级为最小合法模块字节码，不让坏码进 native evaluate。
+                try {
+                    String ss = FileUtils.loadModule(moduleName);
+                    if (TextUtils.isEmpty(ss)) {
+                        LOG.i("echo-getModuleBytecode empty :" + moduleName);
+                        return ctx.compileModule(FALLBACK_MODULE, moduleName);
                     }
-                    return ctx.compileModule(ss, moduleName);
+                    if (ss.startsWith("//DRPY")) {
+                        return Base64.decode(ss.replace("//DRPY", ""), Base64.URL_SAFE);
+                    } else if (ss.startsWith("//bb")) {
+                        byte[] b = Base64.decode(ss.replace("//bb", ""), 0);
+                        return byteFF(b);
+                    } else {
+                        byte[] bytecode = ctx.compileModule(ss, moduleName);
+                        if (bytecode == null) {
+                            LOG.e("echo-getModuleBytecode compile failed: " + moduleName);
+                            return ctx.compileModule(FALLBACK_MODULE, moduleName);
+                        }
+                        if (moduleName.contains("cheerio.min.js")) {
+                            FileUtils.setCacheByte("cheerio.min", bytecode);
+                        } else if (moduleName.contains("crypto-js.js")) {
+                            FileUtils.setCacheByte("crypto-js", bytecode);
+                        }
+                        return bytecode;
+                    }
+                } catch (Throwable th) {
+                    LOG.e("echo-getModuleBytecode failed: " + moduleName + " (" + th.getMessage() + ")");
+                    return ctx.compileModule(FALLBACK_MODULE, moduleName);
                 }
             }
 

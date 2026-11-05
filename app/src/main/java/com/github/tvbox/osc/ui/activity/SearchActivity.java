@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -180,11 +182,21 @@ public class SearchActivity extends BaseActivity {
     protected void onResume() {
         super.onResume();
         if (pauseRunnable != null && pauseRunnable.size() > 0) {
+            // 点击条目进详情前 shutdownNow 取回的任务：重放时补挂 watchdog，
+            // 否则这批任务若无回调，loading 会再次永久卡住（P-3 残留同族路径）
+            final int generation = ++searchGeneration;
+            searchFinished = false;
+            searchHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    finishSearch(generation);
+                }
+            }, SEARCH_WINDOW_MS);
             allRunCount.set(pauseRunnable.size());
             if (sourceViewModel != null) {
                 sourceViewModel.initExecutor();
                 for (Runnable runnable : pauseRunnable) {
-                    sourceViewModel.execute(runnable);
+                    if (!sourceViewModel.execute(runnable)) allRunCount.decrementAndGet();
                 }
             }
             pauseRunnable.clear();
@@ -720,9 +732,41 @@ public class SearchActivity extends BaseActivity {
         searchResult();
     }
 
-    private AtomicInteger allRunCount = new AtomicInteger(0);
+    private final AtomicInteger allRunCount = new AtomicInteger(0);
+
+    // P-3 残留：旧实现假设每个任务恰好 post 一次 TYPE_SEARCH_RESULT 来归还 allRunCount；
+    // 慢源超时无回调、事件丢失、onPause 重放、getSearch 早退任一命中就永不归零 →
+    // loading 永久转圈（真机实测 5+ 分钟）。改为 generation + 幂等收口 + 固定窗口 watchdog：
+    // 结果事件正常递减，窗口到点无条件收口，新搜索用代际隔离旧回调。
+    private final Handler searchHandler = new Handler(Looper.getMainLooper());
+    private volatile int searchGeneration = 0;
+    private volatile boolean searchFinished = true;
+    // 需覆盖最慢源：OkGo 10s 读超时 + 队列排队（30 源 / 5 并发），留足余量
+    private static final long SEARCH_WINDOW_MS = 90000L;
+
+    /** 幂等收口：只结算当前代、且未收口的一轮 */
+    private void finishSearch(int generation) {
+        if (generation != searchGeneration || searchFinished) return;
+        searchFinished = true;
+        searchHandler.removeCallbacksAndMessages(null);
+        allRunCount.set(0);
+        if (searchAdapter.getData().size() <= 0) {
+            showEmpty();
+        }
+        cancel();
+    }
 
     private void searchResult() {
+        final int generation = ++searchGeneration;
+        searchFinished = false;
+        searchHandler.removeCallbacksAndMessages(null);
+        // 窗口兜底：无论慢源/丢失路径如何，到点必收敛
+        searchHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                finishSearch(generation);
+            }
+        }, SEARCH_WINDOW_MS);
         try {
             sourceViewModel.initExecutor();
         } catch (Throwable th) {
@@ -764,8 +808,8 @@ public class SearchActivity extends BaseActivity {
             allRunCount.incrementAndGet();
         }
         if (siteKey.size() <= 0) {
+            finishSearch(generation);
             Toast.makeText(mContext, getString(R.string.search_site), Toast.LENGTH_SHORT).show();
-            //showEmpty();
             return;
         }
 
@@ -774,15 +818,23 @@ public class SearchActivity extends BaseActivity {
             boolean accepted = sourceViewModel.execute(new Runnable() {
                 @Override
                 public void run() {
-                    sourceViewModel.getSearch(siteKeyFinal, searchTitle);
+                    try {
+                        sourceViewModel.getSearch(siteKeyFinal, searchTitle);
+                    } catch (Throwable th) {
+                        // 工作线程异常：补发结果事件归还计数，避免该任务永久占位
+                        th.printStackTrace();
+                        EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_SEARCH_RESULT, null));
+                    }
                 }
             });
-            // P-3：任务被有界队列丢弃时回滚计数，否则搜索 loading 永久卡住
+            // 队列丢弃（DiscardPolicy）时立即归还，避免白等
             if (!accepted) allRunCount.decrementAndGet();
         }
     }
 
     private void searchData(AbsXml absXml) {
+        // 旧代结果事件（上一轮搜索的漏网回调）只丢弃，不递减本轮计数
+        if (searchFinished) return;
         if (absXml != null && absXml.movie != null && absXml.movie.videoList != null && absXml.movie.videoList.size() > 0) {
             List<Movie.Video> data = new ArrayList<>();
             for (Movie.Video video : absXml.movie.videoList) {
@@ -802,10 +854,9 @@ public class SearchActivity extends BaseActivity {
 
         int count = allRunCount.decrementAndGet();
         if (count <= 0) {
-            if (searchAdapter.getData().size() <= 0) {
-                showEmpty();
-            }
-            cancel();
+            // 钳位，防止同一事件的重复回调把计数打成负数
+            allRunCount.set(0);
+            finishSearch(searchGeneration);
         }
     }
 
@@ -816,6 +867,9 @@ public class SearchActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        ++searchGeneration;
+        searchFinished = true;
+        searchHandler.removeCallbacksAndMessages(null);
         cancel();
         try {
             if (sourceViewModel != null) {

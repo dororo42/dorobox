@@ -626,8 +626,10 @@ public class SourceViewModel extends ViewModel {
     public void getSearch(String sourceKey, String wd) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
         if (sourceBean == null) {
-            // 本方法经 SearchActivity 在工作线程执行，未捕获 NPE 会直接杀进程
-            searchResult.postValue(null);
+            // 本方法经 SearchActivity 在工作线程执行，未捕获 NPE 会直接杀进程。
+            // 必须发结果事件：SearchActivity 靠每个任务一次 TYPE_SEARCH_RESULT 归还 allRunCount，
+            // 早退不发事件会让搜索 loading 永久卡住（P-3 残留实测）
+            EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_SEARCH_RESULT, null));
             return;
         }
         int type = sourceBean.getType();
@@ -726,7 +728,7 @@ public class SourceViewModel extends ViewModel {
                         }
                     });
         } else {
-            searchResult.postValue(null);
+            EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_SEARCH_RESULT, null));
         }
     }
 
