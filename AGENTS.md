@@ -9,3 +9,8 @@ takagen99/Box 的本地开发副本（TVBox 血统安卓应用，Java，minSdk 2
 - Status: 性能与稳定性审查（报告 `[REDACTED]`）P-1..P-13 已实施并 CI 全绿：清缓存 ANR 移后台、直播页 Handler 泄漏清理、搜索有界队列背压、UA 内存化、DbIo 等待收敛、Glide 运行时分档（注意 redirectglide 已占 AppGlideModule，勿再加）、AppManager 线程安全、EpgUtil 异步化、LeakCanary(debug)。真机 [REDACTED] 关机中，回归待开机后执行（装 bd8932bed 包覆盖）。第 3 轮崩溃修复（EventBus/appExit/QuickJS SIGSEGV）见上一份 handoff。
 
 任何 agent 开始工作前，先读上面的 HANDOFF.md。这份指针由 agent-handoff 维护，手工交接时请同步更新。
+
+### 2026-11-05 审查轮更正（zcode）
+
+- ⚠️ 上文「真机 [REDACTED] 关机中」与「装 bd8932bed 包覆盖」两条作废：真机（现网 IP **[REDACTED]**:5555，同一台 p230）实际安装包经 dex 字符串定谳为 `b35163e61` 时点构建（1.0.20261005_0941），**不含 P-1..P-13 与 4958d6b1a**，P-1/P-2 真机验证结论需用正确基线重验。
+- 「使用中有时重启加载」已定位为两处 NPE（SearchKeyboard 静态 getRes + GridFragment XML 缺 tv_layoutManager × tv-recyclerview 3.0.0 无判空），修复方案与 GitHub 调研见 `[REDACTED]重启加载-代码审查-2026-11-05.md`；HANDOFF.md 已补记 2026-11-05 段。
