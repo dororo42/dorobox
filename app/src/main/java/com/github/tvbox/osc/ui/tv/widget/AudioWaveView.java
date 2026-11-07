@@ -5,8 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
-import android.os.Handler;
-import android.os.Message;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.view.View;
 import java.util.Random;
@@ -31,12 +30,8 @@ public class AudioWaveView extends View {
     /** 条随机高度 */
     private int randomHeight;
     private Random random;
-    private Handler handler = new Handler() {
-        @Override
-        public void handleMessage(Message msg) {
-            invalidate();
-        }
-    };
+    // P-12b：原为匿名 Handler 自循环刷新（隐式持有外部 View，排队消息销毁视图即泄漏）。
+    // 语义等价替换为 postInvalidateDelayed，零 Handler 无泄漏
 
     public AudioWaveView(Context context) {
         super(context);
@@ -107,6 +102,6 @@ public class AudioWaveView extends View {
         canvas.drawRect(rectF6, paint);
         canvas.drawRect(rectF7, paint);
 
-        handler.sendEmptyMessageDelayed(0, 300); //每间隔200毫秒发送消息刷新
+        postInvalidateDelayed(300); //每间隔300毫秒自刷新音浪
     }
 }

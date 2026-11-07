@@ -1,5 +1,6 @@
 package com.github.tvbox.osc.server;
 
+import android.annotation.SuppressLint;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -24,9 +25,13 @@ import tv.danmaku.ijk.media.player.IjkMediaPlayer;
  * @description:
  */
 public class ControlManager {
+    // 单例自身即进程级对象（App.onCreate 初始化），static 持有自身无泄漏，显式豁免供门禁审计
+    @SuppressLint("StaticFieldLeak")
     private static ControlManager instance;
     private RemoteServer mServer = null;
-    public static Context mContext;
+    // P-12b：原为 public static Context——init(this) 由 App.onCreate 传入 App context 虽无
+    // 真实泄漏，但 static 持 Context 属门禁禁止模式；类外无引用（已 grep 核实），改实例字段
+    private Context mContext;
 
     private ControlManager() {
 
@@ -44,7 +49,7 @@ public class ControlManager {
     }
 
     public static void init(Context context) {
-        mContext = context;
+        get().mContext = context;
     }
 
     public String getAddress(boolean local) {

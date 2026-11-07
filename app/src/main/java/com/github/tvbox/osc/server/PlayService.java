@@ -24,10 +24,15 @@ import com.github.tvbox.osc.ui.activity.DetailActivity;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
+import android.annotation.SuppressLint;
+
 import org.json.JSONObject;
 
 public class PlayService extends Service {
 	static String videoInfo = "TVBox&&第一集";
+	// 后台播放设计：Service 需跨进程入口持有正在播放的控制器；onDestroy 时置 null 防
+	// Activity 销毁后 static 残留（显式豁免供三类 error 门禁审计）
+	@SuppressLint("StaticFieldLeak")
     private static MyVideoView videoView;
 
     public static void start(MyVideoView controller,String currentVideoInfo) {
@@ -113,6 +118,8 @@ public class PlayService extends Service {
     public void onDestroy() {
         EventBus.getDefault().unregister(this);
         stopForeground(true);
+        // P-12b：清 static View 引用，防止最后持有的 Activity 视图链被进程级残留
+        videoView = null;
     }
 
     @Nullable

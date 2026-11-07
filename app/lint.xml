@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- P-12b 门禁：三类高危检查升为 error，abortOnError 后 CI 阻断。
+     新增违例必须修复或显式 @SuppressLint 注明理由 -->
+<lint>
+    <issue id="NewApi" severity="error" />
+    <issue id="StaticFieldLeak" severity="error" />
+    <issue id="HandlerLeak" severity="error" />
+</lint>

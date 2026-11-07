@@ -19,13 +19,15 @@ object JavaUtil {
             if (channelItem == null) null else it.groupIndex to channelItem.channelIndex
         } ?: let {
             var noPassWordGroupIndex = -1
-            liveChannelGroupList.forEach {
-                it.liveChannels.forEach { liceChannel ->
+            // 注意：这里不能用 Kotlin forEach——它编译为 java.lang.Iterable#forEach
+            // （API 24 默认方法），minSdk 21 的 Android 5/6 上直接 NoSuchMethodError
+            for (group in liveChannelGroupList) {
+                for (liceChannel in group.liveChannels) {
                     if (liceChannel.channelName == lastChannelName) {
-                        return it.groupIndex to liceChannel.channelIndex
+                        return group.groupIndex to liceChannel.channelIndex
                     }
-                    if (noPassWordGroupIndex == -1 && it.groupPassword.isEmpty()) {
-                        noPassWordGroupIndex = it.groupIndex
+                    if (noPassWordGroupIndex == -1 && group.groupPassword.isEmpty()) {
+                        noPassWordGroupIndex = group.groupIndex
                     }
                 }
             }

@@ -111,19 +111,31 @@ android {
 
     lintOptions {
         checkReleaseBuilds false
-        abortOnError false
+        // P-12b：三类高危检查升为 error（配合 lint.xml + baseline 门禁新增违例）
+        abortOnError true
     }
 
     buildFeatures {
         dataBinding = true
     }
 
+    // P-12a：项目此前零 test 源集。returnDefaultValues 允许纯 JVM 跑 android.* stub
+    // （仅覆盖不依赖运行时语义的路径，测试内已注明）
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
     lint {
         disable 'UnsafeOptInUsageError'
+        // P-12b 门禁：baseline 吸收全部存量问题（含 6 个历史 Error 级），此后新增违例
+        // 与 lint.xml 三类 error（NewApi/StaticFieldLeak/HandlerLeak）共同构成阻断
+        baseline = file("lint-baseline.xml")
     }
 }
 
 dependencies {
+    // P-12a：单元测试（纯 JVM，覆盖并发契约与工具类）
+    testImplementation 'junit:junit:4.13.2'
     constraints {
         implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.0") {
             because("kotlin-stdlib-jdk7 is now a part of kotlin-stdlib")

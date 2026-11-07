@@ -28,6 +28,29 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # P-12：单测（testArm64GenericNormalDebugUnitTest）+ lint 门禁（lint.xml 三类
+      # error + abortOnError，lint-baseline.xml 吸收存量）在编译前先跑，红了不产出 APK
+      - name: Unit tests (P-12a)
+        env:
+          BOX_DEBUG_KEYSTORE_B64: ${{ secrets.BOX_DEBUG_KEYSTORE_B64 }}
+        run: ./gradlew testArm64GenericNormalDebugUnitTest --stacktrace
+
+      - name: Lint gate (P-12b: NewApi/StaticFieldLeak/HandlerLeak = error)
+        env:
+          BOX_DEBUG_KEYSTORE_B64: ${{ secrets.BOX_DEBUG_KEYSTORE_B64 }}
+        run: ./gradlew lintArm64GenericNormalDebug --stacktrace
+
+      - name: Upload lint & test reports (always, for triage)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            app/build/reports/lint-results-arm64GenericNormalDebug.*
+            app/build/test-results/**/*.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
       # 逐 flavor 编译：python flavor 依赖 buildPython/chaquopy，CI 暂不构建（见 handoff 延后项）
       # M-5：debug 签名 keystore 经 Secrets 注入（保签名稳定，keystore 不入库）
       - name: Build debug APKs (normal mode, armeabi + arm64)

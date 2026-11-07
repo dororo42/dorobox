@@ -1,5 +1,6 @@
 package com.github.tvbox.osc.ui.activity;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
@@ -40,6 +41,9 @@ public class AppsActivity extends BaseActivity {
     private boolean isUnInstallClicked;
     private int appPosition;
 
+    // 实例字段，与 Activity 同生命周期；任务为秒级应用列表查询，无长寿泄漏
+    // （lint 对匿名 AsyncTask 一律警告，此处显式豁免供三类 error 门禁审计）
+    @SuppressLint("StaticFieldLeak")
     private final AsyncTask<Void, Void, AppInfo[]> mApplicationLoader = new AsyncTask<Void, Void, AppInfo[]>() {
         List<AppInfo> items = new ArrayList<>();
 
