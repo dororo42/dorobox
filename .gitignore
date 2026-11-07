@@ -101,3 +101,6 @@ lint/tmp/
 *.hprof
 output-metadata.json
 debug.keystore
+
+# orbital_handoff: 交接文档只在本机流转，永不 commit/push/上传
+handoffs/
