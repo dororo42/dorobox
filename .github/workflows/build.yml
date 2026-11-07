@@ -35,7 +35,7 @@ jobs:
           BOX_DEBUG_KEYSTORE_B64: ${{ secrets.BOX_DEBUG_KEYSTORE_B64 }}
         run: ./gradlew testArm64GenericNormalDebugUnitTest --stacktrace
 
-      - name: Lint gate (P-12b: NewApi/StaticFieldLeak/HandlerLeak = error)
+      - name: "Lint gate (P-12b: NewApi/StaticFieldLeak/HandlerLeak = error)"
         env:
           BOX_DEBUG_KEYSTORE_B64: ${{ secrets.BOX_DEBUG_KEYSTORE_B64 }}
         run: ./gradlew lintArm64GenericNormalDebug --stacktrace
