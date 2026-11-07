@@ -749,6 +749,8 @@ public class SearchActivity extends BaseActivity {
         if (generation != searchGeneration || searchFinished) return;
         searchFinished = true;
         searchHandler.removeCallbacksAndMessages(null);
+        resultFlushScheduled = false;
+        flushSearchResults(); // 收口前把攒批结果落盘，避免误判空
         allRunCount.set(0);
         if (searchAdapter.getData().size() <= 0) {
             showEmpty();
@@ -760,6 +762,8 @@ public class SearchActivity extends BaseActivity {
         final int generation = ++searchGeneration;
         searchFinished = false;
         searchHandler.removeCallbacksAndMessages(null);
+        pendingResults.clear(); // 新搜索不带上一轮攒批残留
+        resultFlushScheduled = false;
         // 窗口兜底：无论慢源/丢失路径如何，到点必收敛
         searchHandler.postDelayed(new Runnable() {
             @Override
@@ -832,24 +836,23 @@ public class SearchActivity extends BaseActivity {
         }
     }
 
+    // 结果聚合节流：30 源批量 addData + 海报解码会把 1GB 盒子的主线程持续打满，
+    // 用户按键输入积压 5s 即触发系统 ANR（真机 20:28/20:30 实测两次）。改为攒批
+    // 400ms 合并 flush 一次，主线程渲染间隙可处理输入事件。
+    private final List<Movie.Video> pendingResults = new ArrayList<>();
+    private boolean resultFlushScheduled = false;
+    private static final long RESULT_FLUSH_MS = 400L;
+
     private void searchData(AbsXml absXml) {
         // 旧代结果事件（上一轮搜索的漏网回调）只丢弃，不递减本轮计数
         if (searchFinished) return;
         if (absXml != null && absXml.movie != null && absXml.movie.videoList != null && absXml.movie.videoList.size() > 0) {
-            List<Movie.Video> data = new ArrayList<>();
             for (Movie.Video video : absXml.movie.videoList) {
-                data.add(video);
+                pendingResults.add(video);
             }
-            if (searchAdapter.getData().size() > 0) {
-                searchAdapter.addData(data);
-            } else {
-                showSuccess();
-                searchAdapter.setNewData(data);
-                tv_history.setVisibility(View.GONE);
-                searchTips.setVisibility(View.GONE);
-                llWord.setVisibility(View.GONE);
-                mGridView.setVisibility(View.VISIBLE);
-            }
+        }
+        if (!pendingResults.isEmpty()) {
+            scheduleResultFlush();
         }
 
         int count = allRunCount.decrementAndGet();
@@ -857,6 +860,35 @@ public class SearchActivity extends BaseActivity {
             // 钳位，防止同一事件的重复回调把计数打成负数
             allRunCount.set(0);
             finishSearch(searchGeneration);
+        }
+    }
+
+    private void scheduleResultFlush() {
+        if (resultFlushScheduled) return;
+        resultFlushScheduled = true;
+        searchHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                resultFlushScheduled = false;
+                flushSearchResults();
+            }
+        }, RESULT_FLUSH_MS);
+    }
+
+    /** 把攒批结果一次性插入列表（首次插入负责从 loading 态切回内容态） */
+    private void flushSearchResults() {
+        if (pendingResults.isEmpty()) return;
+        List<Movie.Video> batch = new ArrayList<>(pendingResults);
+        pendingResults.clear();
+        if (searchAdapter.getData().size() > 0) {
+            searchAdapter.addData(batch);
+        } else {
+            showSuccess();
+            searchAdapter.setNewData(batch);
+            tv_history.setVisibility(View.GONE);
+            searchTips.setVisibility(View.GONE);
+            llWord.setVisibility(View.GONE);
+            mGridView.setVisibility(View.VISIBLE);
         }
     }
 
@@ -870,6 +902,8 @@ public class SearchActivity extends BaseActivity {
         ++searchGeneration;
         searchFinished = true;
         searchHandler.removeCallbacksAndMessages(null);
+        resultFlushScheduled = false;
+        pendingResults.clear();
         cancel();
         try {
             if (sourceViewModel != null) {
