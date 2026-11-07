@@ -85,10 +85,12 @@ public class SourceViewModel extends ViewModel {
             searchExecutorService = null;
             JsLoader.stopAll();
         }
-        // P-3：有界队列（64）+ Discard 策略——30+ 源全量 fan-out 时无界队列会让慢源无限占槽，
-        // 且被丢弃的任务必须由调用方同步扣减计数（execute 返回 false），否则搜索 loading 永久卡住
+        // P-3：有界队列（64）。P-12 单测抓出的历史坑：此前配 DiscardPolicy——拒绝被
+        // handler 静默吞掉，execute() 捕获的 RejectedExecutionException 永远不会抛出、
+        // 恒返回 true，「队列满回滚计数」从未生效（搜索计数泄漏的另一半根因）。
+        // 默认 AbortPolicy 让拒绝以异常浮现，execute 返回 false 由调用方回滚。
         searchExecutorService = new ThreadPoolExecutor(5, 5, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(64), new ThreadPoolExecutor.DiscardPolicy());
+                new LinkedBlockingQueue<>(64));
     }
 
     /** @return false = 任务被拒绝（队列已满被丢弃），调用方需回滚计数 */
