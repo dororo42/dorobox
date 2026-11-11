@@ -1,6 +1,5 @@
 package com.github.tvbox.osc.ui.dialog;
 
-import android.app.Activity;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -13,6 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.github.tvbox.osc.R;
+import com.github.tvbox.osc.base.App;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.SourceDiscovery;
 import com.orhanobut.hawk.Hawk;
@@ -41,12 +41,10 @@ public class SourceTestDialog extends BaseDialog {
 
     private final TestAdapter adapter;
     private final TextView tvProgress;
-    private final Activity activity;
     private final ExecutorService pool = Executors.newFixedThreadPool(WORKERS);
 
     public SourceTestDialog(@NonNull Context context) {
         super(context);
-        this.activity = (Activity) context;
         setContentView(R.layout.dialog_source_test);
         setCanceledOnTouchOutside(true);
         adapter = new TestAdapter();
@@ -76,7 +74,7 @@ public class SourceTestDialog extends BaseDialog {
             return;
         }
         adapter.setItems(targets);
-        tvProgress.setText(activity.getString(com.github.tvbox.osc.R.string.source_test_progress, 0, targets.size()));
+        tvProgress.setText(getContext().getString(com.github.tvbox.osc.R.string.source_test_progress, 0, targets.size()));
         startTests(targets);
     }
 
@@ -95,11 +93,11 @@ public class SourceTestDialog extends BaseDialog {
                     final String result = probe(client, url);
                     done.countDown();
                     // Adapter 更新必须在主线程；进度与行状态一并刷新
-                    activity.runOnUiThread(new Runnable() {
+                    App.post(new Runnable() {
                         @Override
                         public void run() {
                             adapter.setStatus(index, result);
-                            tvProgress.setText(activity.getString(com.github.tvbox.osc.R.string.source_test_progress,
+                            tvProgress.setText(getContext().getString(com.github.tvbox.osc.R.string.source_test_progress,
                                     targets.size() - (int) done.getCount(), targets.size()));
                         }
                     });

@@ -1,6 +1,5 @@
 package com.github.tvbox.osc.ui.dialog;
 
-import android.app.Activity;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,6 +13,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.github.tvbox.osc.R;
+import com.github.tvbox.osc.base.App;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.SourceDiscovery;
 import com.orhanobut.hawk.Hawk;
@@ -35,12 +35,10 @@ public class SourceSearchDialog extends BaseDialog {
     private final SourceAdapter adapter;
     private final TextView btnSearch;
     private final TextView tvStatus;
-    private final Activity activity;
     private volatile boolean searching = false;
 
     public SourceSearchDialog(@NonNull Context context) {
         super(context);
-        this.activity = (Activity) context;
         setContentView(R.layout.dialog_source_search);
         setCanceledOnTouchOutside(true);
         adapter = new SourceAdapter();
@@ -79,8 +77,8 @@ public class SourceSearchDialog extends BaseDialog {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final List<SourceDiscovery.FoundSource> found = SourceDiscovery.discover(activity, BUDGET_MS);
-                activity.runOnUiThread(new Runnable() {
+                final List<SourceDiscovery.FoundSource> found = SourceDiscovery.discover(getContext(), BUDGET_MS);
+                App.post(new Runnable() {
                     @Override
                     public void run() {
                         searching = false;
