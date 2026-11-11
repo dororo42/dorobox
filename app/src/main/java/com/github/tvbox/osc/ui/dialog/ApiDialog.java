@@ -126,6 +126,19 @@ public class ApiDialog extends BaseDialog {
                 Hawk.put(HawkConfig.PROXY_SERVER, newProxyServer);
             }
         });
+        // 源工具入口（借鉴 yunTV）：自动搜索数据源 / 一键验证源
+        findViewById(R.id.btnSourceSearch).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new SourceSearchDialog(getContext()).show();
+            }
+        });
+        findViewById(R.id.btnSourceTest).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new SourceTestDialog(getContext()).show();
+            }
+        });
         findViewById(R.id.apiHistory).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-takagen99/Box 的本地开发副本 dorobox（TVBox 血统安卓应用，Java，minSdk 21 / targetSdk 28，构建链 AGP 7.4.2 + Gradle 7.5 + JDK 11–17；仓库 dororo42/dorobox，**已 PUBLIC**）。当前主线：公开发布准备（Release + handoffs 裁切）；稳定性/工程化加固四轮已收口。长期规则：改动聚焦报告条目；不主动重构无关代码；未经用户明说不 commit/push；内部信息（IP/token/交接细节）不再入库。
+takagen99/Box 的本地开发副本 dorobox（TVBox 血统安卓应用，Java，minSdk 21 / targetSdk 28，构建链 AGP 7.4.2 + Gradle 7.5 + JDK 11–17；仓库 dororo42/dorobox，**已 PUBLIC**）。当前主线：公开发布准备（Release + handoffs 裁切）；稳定性/工程化加固四轮已收口。长期规则：改动聚焦报告条目；不主动重构无关代码；未经用户明说不 commit/push；内部信息（IP/token/交接细节）不再入库；**后续建构和编译一律放到 GH（GitHub Actions）执行**，本地不跑 gradlew 构建/编译/单测/lint，验证以 CI run 状态 + CI artifact 真机安装为准。
 
 ## Current Handoff
 

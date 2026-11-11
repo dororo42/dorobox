@@ -271,4 +271,5 @@
 
     <!-- 结束 视频设置 相关配置 -->
 
+    <string name="source_test_progress">Testing %1$d / %2$d</string>
 </resources>

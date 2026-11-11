@@ -226,4 +226,5 @@
         <item>首选配置地址</item>
         <item>首选设置配置</item>
     </string-array>
+    <string name="source_test_progress">测试 %1$d / %2$d</string>
 </resources>
