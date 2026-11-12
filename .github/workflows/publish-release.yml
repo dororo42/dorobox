@@ -80,7 +80,8 @@ jobs:
             any third-party content.
           EOF
           sed -i 's/^          //' notes.md
-          gh release create "${{ inputs.tag }}" "${{ inputs.ref }}" \
+          gh release create "${{ inputs.tag }}" \
+            --target "${{ inputs.ref }}" \
             --title "dorobox ${{ inputs.version }}" \
             --notes-file notes.md \
             assets/*.apk
