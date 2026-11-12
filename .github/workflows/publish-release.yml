@@ -1,0 +1,86 @@
+name: Publish Release
+
+# 由 GitHub Actions runner 内完成发布：下载指定 CI run 的 apk artifact，
+# 重命名为发布附件并创建 Release。避免本地网络传输大体积 APK。
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.0.20261112)'
+        required: true
+        type: string
+      ref:
+        description: 'Commit / branch the tag points to'
+        required: true
+        default: 'main'
+        type: string
+      run_id:
+        description: 'CI run id whose apk artifact is published'
+        required: true
+        type: string
+      version:
+        description: 'Version string used in APK asset names'
+        required: true
+        default: '1.0.20261112'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download APK artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh run download "${{ inputs.run_id }}" -R "${{ github.repository }}" -n apk -D apk
+          find apk -name "*.apk" -printf "%p %k KB\n" | sort
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p assets
+          cp apk/arm64GenericNormal/debug/TVBox_debug-arm64-generic-java.apk \
+             "assets/dorobox-${{ inputs.version }}-arm64.apk"
+          cp apk/armeabiGenericNormal/debug/TVBox_debug-armeabi-generic-java.apk \
+             "assets/dorobox-${{ inputs.version }}-armeabi.apk"
+          ls -la assets/
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > notes.md <<'EOF'
+          ## dorobox ${{ inputs.version }}
+
+          TVBox-compatible Android TV app (minSdk 21). Install the APK matching your device ABI
+          (arm64 for most modern boxes, armeabi for older 32-bit devices).
+
+          ### What's new
+          - **Auto source discovery**: scan built-in seed pages to find public configuration
+            addresses, then add selected ones to the interface history in one tap.
+          - **Source connectivity test**: check HTTP status, latency and site count for recent
+            configuration addresses (up to 10, 3 parallel).
+          - Stability hardening: search fan-out backpressure and watchdog, ANR-safe result
+            rendering, QuickJS module guards, database backup/restore atomicity, and
+            lifecycle leak fixes.
+          - Public-repository hygiene: build artifacts and signing material are managed
+            through CI; internal handoff documents are local-only.
+
+          ### Notes
+          - APKs are built and published entirely by GitHub Actions from the commit this
+            tag points to.
+          - Configuration sources are user-supplied; this project does not host or endorse
+            any third-party content.
+          EOF
+          sed -i 's/^          //' notes.md
+          gh release create "${{ inputs.tag }}" "${{ inputs.ref }}" \
+            --title "dorobox ${{ inputs.version }}" \
+            --notes-file notes.md \
+            assets/*.apk
